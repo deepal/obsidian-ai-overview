@@ -57,11 +57,11 @@ export function runCapture(
 		const finish = (fn: () => void) => {
 			if (settled) return;
 			settled = true;
-			clearTimeout(timer);
+			window.clearTimeout(timer);
 			fn();
 		};
 
-		const timer = setTimeout(() => {
+		const timer = window.setTimeout(() => {
 			child.kill("SIGKILL");
 			finish(() => reject(new Error(`"${command}" did not respond in time.`)));
 		}, opts.timeoutMs);

@@ -10,9 +10,4 @@ export default [
 			parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
 		},
 	},
-	{
-		// These desktop-only process modules also run in Node tests and have no window lifecycle.
-		files: ["src/agent.ts", "src/spawn.ts"],
-		rules: { "obsidianmd/prefer-window-timers": "off" },
-	},
 ];

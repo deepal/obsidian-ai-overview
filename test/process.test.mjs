@@ -7,6 +7,9 @@ import { runAgent } from "../src/agent.ts";
 import { runCapture } from "../src/spawn.ts";
 import { CatalogueCache } from "../src/discover.ts";
 
+// Obsidian supplies browser timers; use Node's equivalent for subprocess fixtures.
+globalThis.window = { setTimeout, clearTimeout };
+
 async function fixture(t, code) {
 	const dir = await mkdtemp(join(tmpdir(), "ai-overview-test-"));
 	t.after(() => rm(dir, { recursive: true, force: true }));

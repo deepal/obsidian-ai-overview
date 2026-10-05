@@ -163,7 +163,7 @@ export function runAgent(opts: AgentRunOptions): AgentRun {
 
 	let settled = false;
 	let cancelled = false;
-	let timer: ReturnType<typeof setTimeout> | null = null;
+	let timer: number | null = null;
 
 	const child = spawn(opts.command, args, {
 		cwd: opts.cwd,
@@ -193,7 +193,7 @@ export function runAgent(opts: AgentRunOptions): AgentRun {
 			reject(new Error(message));
 		};
 
-		timer = setTimeout(() => {
+		timer = window.setTimeout(() => {
 			cancelled = true;
 			child.kill("SIGKILL");
 			fail(`Timed out after ${Math.round(opts.timeoutMs / 1000)}s.`);
@@ -229,7 +229,7 @@ export function runAgent(opts: AgentRunOptions): AgentRun {
 		});
 
 		child.on("error", (err) => {
-			if (timer) clearTimeout(timer);
+			if (timer !== null) window.clearTimeout(timer);
 			const message =
 				(err as NodeJS.ErrnoException).code === "ENOENT"
 					? `Could not run "${opts.command}". Set the CLI path in the plugin settings.`
@@ -238,7 +238,7 @@ export function runAgent(opts: AgentRunOptions): AgentRun {
 		});
 
 		child.on("close", (code) => {
-			if (timer) clearTimeout(timer);
+			if (timer !== null) window.clearTimeout(timer);
 			if (settled) return;
 			if (cancelled) {
 				fail("Cancelled.");
@@ -264,7 +264,7 @@ export function runAgent(opts: AgentRunOptions): AgentRun {
 		result,
 		cancel() {
 			cancelled = true;
-			if (timer) clearTimeout(timer);
+			if (timer !== null) window.clearTimeout(timer);
 			child.kill("SIGTERM");
 		},
 	};

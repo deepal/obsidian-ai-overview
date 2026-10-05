@@ -42,8 +42,6 @@
 .callout[data-callout="ai"] > .callout-title > .callout-icon::after {
 	content: "AI OVERVIEW";
 	margin-left: 0.45em;
-	padding-right: 0.5em;
-	border-right: 1px solid var(--background-modifier-border);
 	font-size: var(--font-smallest);
 	font-weight: var(--font-semibold);
 	letter-spacing: 0.04em;
@@ -56,12 +54,16 @@
 	align-items: center;
 }
 
-/* With no title to separate, the divider after the label would dangle. */
-.callout[data-callout="ai"]:has(> .callout-title > .callout-title-inner:empty)
+/* Only a non-empty title needs a divider after the label. */
+.callout[data-callout="ai"]
 	> .callout-title
-	> .callout-icon::after {
-	padding-right: 0;
-	border-right: none;
+	> .callout-title-inner:not(:empty)::before {
+	content: "";
+	display: inline-block;
+	height: 1em;
+	margin-right: 0.5em;
+	border-left: 1px solid var(--background-modifier-border);
+	vertical-align: middle;
 }
 
 /*
