@@ -1,3 +1,15 @@
+## [2.0.0](https://github.com/deepal/obsidian-ai-overview/compare/1.0.0...2.0.0) (2026-10-05)
+
+### ⚠ BREAKING CHANGES
+
+* requires Obsidian 1.13.0 or newer for searchable
+settings. Existing plugin IDs, command IDs, settings, and note formats
+remain compatible.
+
+### Features
+
+* add searchable settings and community review fixes ([090d9eb](https://github.com/deepal/obsidian-ai-overview/commit/090d9eb0a9cf671af1fcc7381b78ca6b806de696))
+
 ## 1.0.0 (2026-10-05)
 
 ### Features

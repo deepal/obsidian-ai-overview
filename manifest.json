@@ -1,7 +1,7 @@
 {
 	"id": "ai-overview",
 	"name": "AI Overview",
-	"version": "1.0.0",
+	"version": "2.0.0",
 	"minAppVersion": "1.13.0",
 	"description": "Generate AI overviews in your notes using locally installed AI agents.",
 	"author": "Deepal Jayasekara",
