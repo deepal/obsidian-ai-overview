@@ -1,7 +1,7 @@
 {
 	"id": "ai-overview",
 	"name": "AI Overview",
-	"version": "0.1.0",
+	"version": "1.0.0",
 	"minAppVersion": "1.5.0",
 	"description": "Answer a prompt in an [!ai] callout with the Codex, Claude Code, or opencode CLI, writing the summary into the note as a nested callout.",
 	"author": "Deepal Jayasekara",
