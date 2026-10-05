@@ -28,7 +28,8 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
-      - run: npm ci --legacy-peer-deps
+      - run: npm ci
+      - run: npm run lint
       - run: npm test
       - run: npm run build
 
@@ -49,7 +50,7 @@ jobs:
         with:
           node-version-file: .nvmrc
           package-manager-cache: false
-      - run: npm ci --legacy-peer-deps
+      - run: npm ci
       - name: Publish release
         run: npm run release
         env:

@@ -14,9 +14,13 @@ access. Vault notes do not need to be linked; internet access depends on the
 agent's available tools and permissions. Results are saved in the note itself,
 so they can sync to other devices and remain readable with the plugin disabled.
 
+AI Overview is free. It uses agents you install and configure separately.
+Any provider account, subscription, or usage charges belong to your chosen agent
+setup; the plugin does not collect payments or require a paid plan.
+
 ## Requirements
 
-- **Obsidian desktop.** The manifest declares Obsidian 1.5.0 or later. Generation
+- **Obsidian desktop.** The manifest declares Obsidian 1.13.0 or later. Generation
   is unavailable on mobile because the plugin starts a local CLI process.
 - **One supported CLI, installed and authenticated.** Set it up using the linked
   CLI documentation above and confirm it works in a terminal before using the
@@ -153,9 +157,9 @@ under **Settings → Hotkeys**.
 | Command | What it does |
 | --- | --- |
 | Insert AI callout | Inserts an empty callout and places the cursor on the prompt line. |
-| Regenerate AI overview at cursor | Generates a fresh answer for the callout containing the cursor. |
-| Regenerate every AI overview in this note | Regenerates callouts with non-empty prompts, preserving summaries without metadata. Skips the callout containing the active cursor; move outside it before running this command. |
-| Show AI Overview status for this note | Shows detected callouts, generation state, and recorded errors. |
+| Regenerate at cursor | Generates a fresh answer for the callout containing the cursor. |
+| Regenerate every overview in this note | Regenerates callouts with non-empty prompts, preserving summaries without metadata. Skips the callout containing the active cursor; move outside it before running this command. |
+| Show status for this note | Shows detected callouts, generation state, and recorded errors. |
 
 ## Settings
 
@@ -198,6 +202,39 @@ formats. If it fails, **CLI default** remains available.
 
 ## Privacy and file access
 
+### Remote services
+
+The plugin starts a local CLI rather than sending requests to a model API itself.
+The CLI's configuration determines which services are contacted. Codex commonly
+uses OpenAI, Claude Code commonly uses Anthropic, and opencode can use configured
+providers such as OpenAI, Anthropic, Google, or a local model. Alternative endpoints
+and CLI tools may contact other services, including websites requested by a prompt.
+Remote model services are used to generate the answer; the CLI may also contact
+services during authentication or model discovery.
+
+A remote provider can receive the prompt, note contents, absolute file paths, and
+content from other files or tools the agent uses. Local execution alone does not
+keep this information on the device. Check your CLI's configuration and provider's
+privacy terms before generating answers. The plugin includes no analytics or
+telemetry service; the CLI and model provider have their own data-handling policies.
+
+### Files outside the vault
+
+The plugin runs an executable installed outside the vault. That CLI may read its
+own configuration and authentication files in your home directory, which it needs
+to select models and authenticate. It may read other accessible files according
+to its permissions and your prompt; setting its working directory to the vault
+does not restrict file access to the vault.
+
+For Codex, the plugin writes a response-schema file to the operating system's
+temporary directory and reads the final response from a temporary output file.
+These files let the CLI produce and return a structured answer. The schema contains
+no note text; the output can contain generated content derived from your notes.
+The plugin attempts to remove both files when a run finishes or fails. Files may
+remain after an app or system crash and can be removed from the temporary directory.
+
+### Agent permissions
+
 Each agent runs non-interactively with the vault root as its working directory.
 The plugin supplies the note's absolute path and asks the agent to read it first,
 following wikilinks or relative links only when the request needs them. The agent
@@ -233,7 +270,7 @@ optional `title` flag marks the outer title as generated and replaceable.
 ## Troubleshooting
 
 - **Nothing happens:** check that the prompt is non-empty and move the cursor
-  outside the callout. Run **Show AI Overview status for this note** to check
+  outside the callout. Run **Show status for this note** to check
   whether it needs generation or has a recorded error.
 - **CLI not found:** confirm it works in your terminal, then set an absolute
   executable path in the plugin settings.
@@ -259,13 +296,13 @@ workflow uses Node.js 24; run `nvm use` to select it locally if you use nvm.
 From a local checkout of this repository:
 
 ```bash
-npm ci --legacy-peer-deps
+npm ci
+npm run lint
 npm run build
 npm test
 ```
 
-The current dependencies have a CodeMirror/Obsidian peer-version conflict, so the
-install command above bypasses peer-dependency resolution. `npm run build`
+`npm run build`
 type-checks and bundles the plugin into `main.js`. Copy it, `manifest.json`, and
 `styles.css` into your vault as described in [Installation](#installation).
 
@@ -329,3 +366,13 @@ do not update version files, build release assets, commit, tag, or publish.
 
 See [Obsidian's publishing guide](https://docs.obsidian.md/Plugins/Releasing/Submit%20your%20plugin)
 for the community-directory submission process and release asset requirements.
+
+## Searchable settings and linting
+
+Settings are searchable from Obsidian's global settings search. Development uses
+the official Obsidian lint rules; the lint package's Obsidian dependency is
+overridden to match the API version used by this plugin.
+
+## License
+
+[MIT](./LICENSE), copyright 2026 Deepal Jayasekara.

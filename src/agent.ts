@@ -99,6 +99,7 @@ function buildPrompt(
  * Terminal escape sequences some CLIs interleave with their JSON output: OSC
  * strings (used for shell notifications) and ordinary colour codes.
  */
+// eslint-disable-next-line no-control-regex -- CLI output contains real ANSI and OSC control bytes.
 const ESCAPES = /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b\[[0-9;?]*[A-Za-z]/g;
 
 /**

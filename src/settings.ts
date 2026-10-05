@@ -1,87 +1,14 @@
-import { App, PluginSettingTab, Setting } from "obsidian";
+import { App, PluginSettingTab, type Setting, type SettingDefinitionItem } from "obsidian";
 import { effortOptions, type Catalogue } from "./discover.ts";
 import { getProvider, PROVIDER_IDS, type Provider, type ProviderId } from "./providers.ts";
 import type AiOverviewPlugin from "./main.ts";
+export { DEFAULT_SETTINGS, mergeSettings, type AiOverviewSettings } from "./settings-data.ts";
 
-/** Per-provider values, so switching CLI doesn't clobber the other's setup. */
-type ByProvider = Record<ProviderId, string>;
-
-export interface AiOverviewSettings {
-	/** Which CLI generates overviews. */
-	provider: ProviderId;
-	/** Executable name or absolute path, per provider. */
-	paths: ByProvider;
-	/** Model override per provider; empty defers to that CLI's own config. */
-	models: ByProvider;
-	/** Thinking level per provider; empty defers to that CLI's own config. */
-	efforts: ByProvider;
-	/** Extra CLI arguments per provider. */
-	extraArgs: ByProvider;
-	/** `KEY=VALUE` pairs passed to whichever CLI runs. */
-	env: string;
-	/** How long a single generation may run before it is killed. */
-	timeoutSeconds: number;
-}
-
-export const DEFAULT_SETTINGS: AiOverviewSettings = {
-	provider: "codex",
-	paths: { codex: "codex", claude: "claude", opencode: "opencode" },
-	models: { codex: "", claude: "", opencode: "" },
-	efforts: { codex: "", claude: "", opencode: "" },
-	extraArgs: { codex: "", claude: "", opencode: "" },
-	env: "",
-	timeoutSeconds: 300,
+const ARGS_PLACEHOLDERS: Record<ProviderId, string> = {
+	codex: "-c model_verbosity=low", claude: "--add-dir ../shared", opencode: "--agent plan",
 };
-
-const ARGS_PLACEHOLDERS: ByProvider = {
-	codex: "-c model_verbosity=low",
-	claude: "--add-dir ../shared",
-	opencode: "--agent plan",
-};
-
-/** Stands in for "whatever the CLI would choose on its own". */
 const CLI_DEFAULT = "";
 const CLI_DEFAULT_LABEL = "CLI default";
-
-/**
- * Merges stored data over the defaults, keeping the per-provider maps intact
- * when only some keys were saved, and carrying over the flat single-CLI shape
- * that earlier versions wrote.
- */
-export function mergeSettings(raw: unknown): AiOverviewSettings {
-	const data = (raw ?? {}) as Partial<AiOverviewSettings> & {
-		codexPath?: string;
-		model?: string;
-		extraArgs?: string | ByProvider;
-	};
-
-	const settings: AiOverviewSettings = {
-		...DEFAULT_SETTINGS,
-		...(data as Partial<AiOverviewSettings>),
-		paths: { ...DEFAULT_SETTINGS.paths, ...(data.paths ?? {}) },
-		models: { ...DEFAULT_SETTINGS.models, ...(data.models ?? {}) },
-		efforts: { ...DEFAULT_SETTINGS.efforts, ...(data.efforts ?? {}) },
-		extraArgs: {
-			...DEFAULT_SETTINGS.extraArgs,
-			...(typeof data.extraArgs === "object" ? data.extraArgs : {}),
-		},
-	};
-
-	if (typeof data.codexPath === "string" && data.codexPath.trim()) {
-		settings.paths.codex = data.codexPath.trim();
-	}
-	if (typeof data.model === "string" && data.model.trim()) {
-		settings.models.codex = data.model.trim();
-	}
-	if (typeof data.extraArgs === "string" && data.extraArgs.trim()) {
-		settings.extraArgs.codex = data.extraArgs;
-	}
-	if (!PROVIDER_IDS.includes(settings.provider)) {
-		settings.provider = DEFAULT_SETTINGS.provider;
-	}
-
-	return settings;
-}
 
 export class AiOverviewSettingTab extends PluginSettingTab {
 	private plugin: AiOverviewPlugin;
@@ -91,97 +18,77 @@ export class AiOverviewSettingTab extends PluginSettingTab {
 		this.plugin = plugin;
 	}
 
-	display(): void {
-		const { containerEl } = this;
-		containerEl.empty();
-
+	getSettingDefinitions(): SettingDefinitionItem[] {
 		const active = this.plugin.settings.provider;
 		const provider = getProvider(active);
 		const command = this.plugin.command();
 		const catalogue = this.plugin.catalogue.peek(active, command);
-
-		new Setting(containerEl)
-			.setName("Agent CLI")
-			.setDesc("Which locally installed CLI generates overviews.")
-			.addDropdown((d) => {
-				for (const id of PROVIDER_IDS) d.addOption(id, getProvider(id).label);
-				d.setValue(active).onChange(async (value) => {
-					this.plugin.settings.provider = value as ProviderId;
-					await this.plugin.saveSettings();
-					this.plugin.refreshViews();
-					// The remaining settings are per-provider, so rebuild them.
-					this.display();
-				});
-			});
-
-		new Setting(containerEl)
-			.setName(`${provider.label} path`)
-			.setDesc(
-				"Executable name or absolute path. A bare name is resolved against PATH plus the usual install directories."
-			)
-			.addText((t) =>
-				t
-					.setPlaceholder(provider.defaultPath)
-					.setValue(this.plugin.settings.paths[active])
-					.onChange(async (v) => {
-						this.plugin.settings.paths[active] = v.trim() || provider.defaultPath;
-						await this.plugin.saveSettings();
-					})
-					.inputEl.addEventListener("blur", () => {
-						// A different executable may report a different catalogue.
-						this.display();
-					})
-			);
-
-		this.addModelSetting(active, provider, command, catalogue);
-		this.addEffortSetting(active, provider, catalogue);
-
-		new Setting(containerEl)
-			.setName("Extra arguments")
-			.setDesc(
-				`Appended to every ${provider.label} invocation. Quoted values are kept together.`
-			)
-			.addText((t) =>
-				t
-					.setPlaceholder(ARGS_PLACEHOLDERS[active])
-					.setValue(this.plugin.settings.extraArgs[active])
-					.onChange(async (v) => {
-						this.plugin.settings.extraArgs[active] = v;
-						await this.plugin.saveSettings();
-					})
-			);
-
-		new Setting(containerEl)
-			.setName("Environment variables")
-			.setDesc(
-				"One KEY=VALUE per line, added to the CLI's environment. Obsidian doesn't inherit your shell's exports, so API keys usually have to be set here. Stored in plain text in the plugin's data folder."
-			)
-			.addTextArea((t) => {
-				t.setPlaceholder("GOOGLE_GENERATIVE_AI_API_KEY=…")
-					.setValue(this.plugin.settings.env)
-					.onChange(async (v) => {
-						this.plugin.settings.env = v;
-						await this.plugin.saveSettings();
+		return [
+			{
+				name: "Agent CLI",
+				desc: "Which locally installed CLI generates overviews.",
+				render: (setting) => {
+					setting.addDropdown((d) => {
+						for (const id of PROVIDER_IDS) d.addOption(id, getProvider(id).label);
+						d.setValue(active).onChange(async (value) => {
+							if (!PROVIDER_IDS.includes(value as ProviderId)) return;
+							this.plugin.settings.provider = value as ProviderId;
+							await this.plugin.saveSettings();
+							this.plugin.refreshViews();
+							this.update();
+						});
 					});
-				t.inputEl.rows = 3;
-			});
-
-		new Setting(containerEl)
-			.setName("Timeout")
-			.setDesc("Seconds before a generation is abandoned.")
-			.addText((t) =>
-				t
-					.setPlaceholder(String(DEFAULT_SETTINGS.timeoutSeconds))
-					.setValue(String(this.plugin.settings.timeoutSeconds))
-					.onChange(async (v) => {
-						const parsed = Number.parseInt(v, 10);
-						this.plugin.settings.timeoutSeconds =
-							Number.isFinite(parsed) && parsed > 0
-								? parsed
-								: DEFAULT_SETTINGS.timeoutSeconds;
-						await this.plugin.saveSettings();
-					})
-			);
+				},
+			},
+			{
+				name: `${provider.label} path`,
+				desc: "Executable name or absolute path. Bare names are resolved using the executable search path and common install directories.",
+				render: (setting) => {
+					setting.addText((t) => {
+						t.setPlaceholder(provider.defaultPath).setValue(this.plugin.settings.paths[active]).onChange(async (value) => {
+							this.plugin.settings.paths[active] = value.trim() || provider.defaultPath;
+							await this.plugin.saveSettings();
+						});
+						t.inputEl.addEventListener("blur", () => this.update());
+					});
+				},
+			},
+			{
+				name: "Model",
+				desc: "Model used by the selected agent. Leave empty to use its default.",
+				render: (setting) => this.addModelSetting(setting, active, provider, command, catalogue),
+			},
+			{
+				name: provider.effortLabel,
+				desc: "Thinking level used by the selected model.",
+				visible: Boolean(provider.listModels || provider.listEfforts),
+				render: (setting) => this.addEffortSetting(setting, active, provider, catalogue),
+			},
+			{
+				name: "Extra arguments",
+				desc: `Appended to every ${provider.label} invocation. Quoted values are kept together.`,
+				render: (setting) => {
+					setting.addText((t) => t.setPlaceholder(ARGS_PLACEHOLDERS[active])
+						.setValue(this.plugin.settings.extraArgs[active]).onChange(async (value) => {
+							this.plugin.settings.extraArgs[active] = value;
+							await this.plugin.saveSettings();
+						}));
+				},
+			},
+			{
+				name: "Environment variables",
+				desc: "One key and value per line, separated by an equals sign. Added to the CLI environment and stored in plain text in the plugin data folder.",
+				control: { type: "textarea", key: "env", placeholder: "NAME=value" },
+			},
+			{
+				name: "Timeout",
+				desc: "Seconds before a generation is abandoned.",
+				control: {
+					type: "number", key: "timeoutSeconds", min: 1, step: 1,
+					validate: (value) => Number.isSafeInteger(value) && value > 0 ? undefined : "Enter a positive whole number.",
+				},
+			},
+		];
 	}
 
 	/**
@@ -190,12 +97,12 @@ export class AiOverviewSettingTab extends PluginSettingTab {
 	 * list it, so a hand-picked model survives.
 	 */
 	private addModelSetting(
+		setting: Setting,
 		active: ProviderId,
 		provider: Provider,
 		command: string,
 		catalogue: Catalogue | null
 	): void {
-		const setting = new Setting(this.containerEl).setName("Model");
 		const selected = this.plugin.settings.models[active];
 
 		if (!provider.listModels) {
@@ -221,7 +128,7 @@ export class AiOverviewSettingTab extends PluginSettingTab {
 				d.addOption(selected, selected || "Loading…");
 				d.setDisabled(true);
 			});
-			this.loadCatalogue(active, command);
+			void this.loadCatalogue(active, command, setting.settingEl);
 			return;
 		}
 
@@ -252,7 +159,7 @@ export class AiOverviewSettingTab extends PluginSettingTab {
 				}
 				await this.plugin.saveSettings();
 				this.plugin.refreshViews();
-				this.display();
+				this.update();
 			});
 		});
 
@@ -262,24 +169,25 @@ export class AiOverviewSettingTab extends PluginSettingTab {
 				.setTooltip("Ask the CLI again")
 				.onClick(() => {
 					this.plugin.catalogue.invalidate(active, command);
-					this.display();
+					this.update();
 				})
 		);
 	}
 
 	/** A dropdown of the thinking levels the CLI reports for the chosen model. */
 	private addEffortSetting(
+		setting: Setting,
 		active: ProviderId,
 		provider: Provider,
 		catalogue: Catalogue | null
 	): void {
 		if (!provider.listModels && !provider.listEfforts) return;
 
-		const setting = new Setting(this.containerEl).setName(provider.effortLabel);
 		const selected = this.plugin.settings.efforts[active];
 
 		if (!catalogue) {
 			setting.setDesc(`Asking ${provider.label} which levels it supports…`);
+			void this.loadCatalogue(active, this.plugin.command(), setting.settingEl);
 			setting.addDropdown((d) => {
 				d.addOption(selected, selected || "Loading…");
 				d.setDisabled(true);
@@ -321,13 +229,11 @@ export class AiOverviewSettingTab extends PluginSettingTab {
 		});
 	}
 
-	/** Kicks off a lookup and redraws once the CLI has answered. */
-	private loadCatalogue(provider: ProviderId, command: string): void {
-		void this.plugin.catalogue.load(provider, command).then(() => {
-			// The tab may have been closed or switched in the meantime.
-			if (this.plugin.settings.provider !== provider) return;
-			if (!this.containerEl.isConnected) return;
-			this.display();
-		});
+	/** Only rendered controls trigger discovery; indexing definitions never does. */
+	private async loadCatalogue(provider: ProviderId, command: string, row: HTMLElement): Promise<void> {
+		await this.plugin.catalogue.load(provider, command);
+		if (this.plugin.settings.provider !== provider || this.plugin.command() !== command) return;
+		if (!row.isConnected) return;
+		this.update();
 	}
 }

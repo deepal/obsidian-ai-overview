@@ -47,8 +47,11 @@ export class CatalogueCache {
 		if (running) return running;
 
 		const lookup = this.fetch(provider, command).then((catalogue) => {
-			this.resolved.set(id, catalogue);
-			this.inFlight.delete(id);
+			// A refresh can replace this lookup while it is running.
+			if (this.inFlight.get(id) === lookup) {
+				this.resolved.set(id, catalogue);
+				this.inFlight.delete(id);
+			}
 			return catalogue;
 		});
 		this.inFlight.set(id, lookup);

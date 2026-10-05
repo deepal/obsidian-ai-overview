@@ -3,7 +3,6 @@ import { runAgent, type AgentRun } from "./agent.ts";
 import {
 	needsSummary,
 	parseRegions,
-	promptHash,
 	runKey,
 	runKeyPrefix,
 	type AiRegion,
@@ -179,7 +178,7 @@ export class Summariser {
 			// replace it, so there is no point generating one.
 			if (region.summary && !region.summary.meta) {
 				if (force) {
-					new Notice("AI Overview: that summary was written by hand, so it was left alone.");
+					new Notice("That summary was written by hand, so it was left alone.");
 				}
 				continue;
 			}
@@ -207,15 +206,15 @@ export class Summariser {
 		);
 
 		if (!region) {
-			new Notice("AI Overview: put the cursor inside an [!ai] callout first.");
+			new Notice("Select an AI callout first.");
 			return;
 		}
 		if (!region.prompt) {
-			new Notice("AI Overview: that callout has no prompt.");
+			new Notice("That callout has no prompt.");
 			return;
 		}
 		if (region.summary && !region.summary.meta) {
-			new Notice("AI Overview: that summary was written by hand, so it was left alone.");
+			new Notice("That summary was written by hand, so it was left alone.");
 			return;
 		}
 

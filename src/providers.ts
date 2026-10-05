@@ -14,7 +14,7 @@ export interface ModelInfo {
 /** A listing command the CLI itself provides, and how to read its output. */
 export interface Listing<T> {
 	args: string[];
-	parse(stdout: string): T;
+	parse(this: void, stdout: string): T;
 }
 
 export interface ProviderRunContext {

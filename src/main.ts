@@ -40,7 +40,7 @@ export default class AiOverviewPlugin extends Plugin {
 
 		this.addCommand({
 			id: "regenerate-at-cursor",
-			name: "Regenerate AI overview at cursor",
+			name: "Regenerate at cursor",
 			editorCallback: (editor, view) => {
 				const file = view.file;
 				if (file) void this.summariser.regenerateAtCursor(file, editor.getCursor().line);
@@ -49,13 +49,12 @@ export default class AiOverviewPlugin extends Plugin {
 
 		this.addCommand({
 			id: "status",
-			name: "Show AI Overview status for this note",
+			name: "Show status for this note",
 			checkCallback: (checking) => {
 				const file = this.app.workspace.getActiveFile();
 				if (!file || file.extension !== "md") return false;
 				if (!checking) {
 					void this.summariser.describe(file).then((report) => {
-						console.log(`[ai-overview] status\n${report}`);
 						new Notice(report, 15_000);
 					});
 				}
@@ -65,7 +64,7 @@ export default class AiOverviewPlugin extends Plugin {
 
 		this.addCommand({
 			id: "regenerate-note",
-			name: "Regenerate every AI overview in this note",
+			name: "Regenerate every overview in this note",
 			checkCallback: (checking) => {
 				const file = this.app.workspace.getActiveFile();
 				if (!file || file.extension !== "md") return false;
