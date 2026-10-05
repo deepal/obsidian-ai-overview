@@ -1,3 +1,9 @@
+## [2.0.1](https://github.com/deepal/obsidian-ai-overview/compare/2.0.0...2.0.1) (2026-10-05)
+
+### Bug Fixes
+
+* clean up plugin review warnings ([be045db](https://github.com/deepal/obsidian-ai-overview/commit/be045db0af591a3c0b0b45866a2e15b32d006e88))
+
 ## [2.0.0](https://github.com/deepal/obsidian-ai-overview/compare/1.0.0...2.0.0) (2026-10-05)
 
 ### ⚠ BREAKING CHANGES
