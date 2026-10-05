@@ -1,0 +1,32 @@
+{
+	"name": "obsidian-ai-overview",
+	"version": "0.1.0",
+	"description": "AI-generated note overviews in Obsidian, rendered from `ai` code blocks via the Codex CLI.",
+	"main": "main.js",
+	"scripts": {
+		"dev": "node esbuild.config.mjs",
+		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+		"test": "node --experimental-strip-types --test test/*.test.mjs"
+	},
+	"keywords": [
+		"obsidian",
+		"plugin",
+		"ai",
+		"codex",
+		"summary"
+	],
+	"author": "Deepal Jayasekara",
+	"license": "MIT",
+	"devDependencies": {
+		"@codemirror/state": "^6.7.1",
+		"@codemirror/view": "^6.43.7",
+		"@types/node": "^20.11.30",
+		"builtin-modules": "^3.3.0",
+		"esbuild": "^0.20.2",
+		"obsidian": "latest",
+		"typescript": "^5.4.3"
+	},
+	"allowScripts": {
+		"esbuild@0.20.2": true
+	}
+}

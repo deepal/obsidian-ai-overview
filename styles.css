@@ -1,0 +1,226 @@
+/* ── AI Overview ──────────────────────────────────────────────────────────── */
+
+/*
+ * The prompt callout. Obsidian renders unknown callout types with a default icon
+ * and colour, so both are set here.
+ *
+ * The gradient replaces Obsidian's flat callout background rather than layering
+ * over it — that background is a solid tint of the callout colour, and it drowns
+ * out any gradient of comparable weight. Stops are drawn from the theme's colour
+ * tokens so the wash tints in light themes and glows in dark ones, and its
+ * visibility comes from the contrast between the ends rather than from raw
+ * intensity. A fixed blend mode keeps it stable under themes that set one for
+ * callouts.
+ */
+.callout[data-callout="ai"] {
+	--callout-icon: sparkles;
+	--callout-color: var(--color-purple-rgb, 168, 130, 255);
+	background-color: transparent;
+	background-image: linear-gradient(
+		115deg,
+		rgba(var(--color-purple-rgb, 168, 130, 255), 0.22) 0%,
+		rgba(var(--color-blue-rgb, 8, 109, 221), 0.13) 45%,
+		rgba(var(--color-cyan-rgb, 0, 191, 188), 0.04) 100%
+	);
+	mix-blend-mode: normal;
+}
+
+.callout[data-callout="ai"] > .callout-title {
+	align-items: center;
+	gap: 0.4em;
+	/*
+	 * The gap below the title comes from the summary's own leading margin, as in
+	 * any other callout; this is a little extra on top of it.
+	 */
+	padding-bottom: 0.25em;
+}
+
+/*
+ * "AI OVERVIEW" as chrome ahead of the title, so a titled callout reads
+ * "✦ AI OVERVIEW │ Risk review".
+ */
+.callout[data-callout="ai"] > .callout-title > .callout-icon::after {
+	content: "AI OVERVIEW";
+	margin-left: 0.45em;
+	padding-right: 0.5em;
+	border-right: 1px solid var(--background-modifier-border);
+	font-size: var(--font-smallest);
+	font-weight: var(--font-semibold);
+	letter-spacing: 0.04em;
+	color: var(--text-muted);
+	white-space: nowrap;
+}
+
+.callout[data-callout="ai"] > .callout-title > .callout-icon {
+	display: inline-flex;
+	align-items: center;
+}
+
+/* With no title to separate, the divider after the label would dangle. */
+.callout[data-callout="ai"]:has(> .callout-title > .callout-title-inner:empty)
+	> .callout-title
+	> .callout-icon::after {
+	padding-right: 0;
+	border-right: none;
+}
+
+/*
+ * The prompt is the instruction, not the content, so it is hidden once rendered
+ * and only the summary remains. It is still there in the source, which is where
+ * it gets edited.
+ */
+.callout[data-callout="ai"] > .callout-content > *:not(.callout) {
+	display: none;
+}
+
+/* ── The nested summary ─────────────────────────────────────────────────── */
+
+/*
+ * The nested callout is a container for the plugin's benefit, not a second box
+ * to look at: its title row carries the provenance comment and is hidden, and
+ * its framing is flattened so the summary reads as the parent's own content.
+ */
+.callout[data-callout="ai"] .callout[data-callout="summary"] {
+	margin: 0;
+	padding: 0;
+	border: none;
+	background: none;
+	mix-blend-mode: normal;
+}
+
+.callout[data-callout="ai"] .callout[data-callout="summary"] > .callout-title {
+	display: none;
+}
+
+
+/* ── While generating ───────────────────────────────────────────────────── */
+
+/*
+ * The title row carries the agent's live status while a run is under way, so it
+ * is set in monospace to read as machine output rather than as a title, and kept
+ * to one line however long a command is. The stash attribute is present only for
+ * the duration of the run, which is what scopes this.
+ */
+.callout[data-callout="ai"] .callout-title-inner[data-aio-title] {
+	font-family: var(--font-monospace);
+	font-size: var(--font-smallest);
+	font-weight: var(--font-normal);
+	color: var(--text-faint);
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+/*
+ * The only in-progress signal: the callout's icon sparkles. The glyph is drawn as
+ * four separate shapes — a large star and three small accents — so each is
+ * animated in its own right: the star breathes and turns while the accents pop in
+ * and out around it, offset from one another so they never fire together.
+ *
+ * Each shape pivots about its own centre, which `fill-box` sets; without it the
+ * whole icon would swing about the SVG's corner instead.
+ */
+.callout[data-callout="ai"] .callout-icon svg > * {
+	transform-box: fill-box;
+	transform-origin: center;
+}
+
+/*
+ * Four selectors cover the ways a callout can reach the screen: decorated editor
+ * lines, a class on a reading-view callout, and a body class that applies
+ * wherever the other two can't reach.
+ */
+.callout[data-callout="ai"].aio-generating .callout-icon svg > *:first-child,
+.cm-line.aio-generating .callout[data-callout="ai"] .callout-icon svg > *:first-child,
+.cm-line.aio-generating .callout-icon svg > *:first-child,
+body.aio-busy .callout[data-callout="ai"] .callout-icon svg > *:first-child {
+	animation: aio-sparkle-star 1.8s ease-in-out infinite;
+}
+
+.callout[data-callout="ai"].aio-generating .callout-icon svg > *:not(:first-child),
+.cm-line.aio-generating
+	.callout[data-callout="ai"]
+	.callout-icon
+	svg
+	> *:not(:first-child),
+.cm-line.aio-generating .callout-icon svg > *:not(:first-child),
+body.aio-busy .callout[data-callout="ai"] .callout-icon svg > *:not(:first-child) {
+	animation: aio-sparkle-pop 1.8s ease-in-out infinite;
+}
+
+/*
+ * Offsets are unscoped: an animation-delay without an animation does nothing, so
+ * this needs no duplicate of the selectors above.
+ */
+.callout[data-callout="ai"] .callout-icon svg > *:nth-child(2) {
+	animation-delay: 0.15s;
+}
+
+.callout[data-callout="ai"] .callout-icon svg > *:nth-child(3) {
+	animation-delay: 0.5s;
+}
+
+.callout[data-callout="ai"] .callout-icon svg > *:nth-child(4) {
+	animation-delay: 0.85s;
+}
+
+/*
+ * Only transform and opacity are animated. A `filter` would promote each shape to
+ * its own compositing layer, which no longer blends with the callout's
+ * semi-transparent gradient — the layer's bounds then show as a pale box behind
+ * the icon.
+ */
+
+/* The star never leaves: it grows, turns a little, and settles back. */
+@keyframes aio-sparkle-star {
+	0%,
+	100% {
+		opacity: 0.5;
+		transform: scale(0.82) rotate(-12deg);
+	}
+	45% {
+		opacity: 1;
+		transform: scale(1.14) rotate(6deg);
+	}
+	70% {
+		opacity: 0.9;
+		transform: scale(0.98) rotate(0deg);
+	}
+}
+
+/* The accents burst in from nothing and vanish again. */
+@keyframes aio-sparkle-pop {
+	0%,
+	100% {
+		opacity: 0;
+		transform: scale(0.1);
+	}
+	40% {
+		opacity: 1;
+		transform: scale(1.25);
+	}
+	75% {
+		opacity: 0.25;
+		transform: scale(0.6);
+	}
+}
+
+/* ── Status bar ─────────────────────────────────────────────────────────── */
+
+.aio-status-bar:empty {
+	display: none;
+}
+
+.aio-status-bar {
+	color: var(--text-accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.callout[data-callout="ai"].aio-generating .callout-icon svg > *,
+	.cm-line.aio-generating .callout-icon svg > *,
+	body.aio-busy .callout[data-callout="ai"] .callout-icon svg > * {
+		animation: none;
+		opacity: 0.6;
+	}
+}
