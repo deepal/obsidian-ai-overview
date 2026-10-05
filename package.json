@@ -1,12 +1,22 @@
 {
 	"name": "obsidian-ai-overview",
 	"version": "0.1.0",
+	"private": true,
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/deepal/obsidian-ai-overview.git"
+	},
+	"engines": {
+		"node": ">=24.10.0"
+	},
 	"description": "AI-generated note overviews in Obsidian, rendered from `ai` code blocks via the Codex CLI.",
 	"main": "main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
-		"test": "node --experimental-strip-types --test test/*.test.mjs"
+		"test": "node --experimental-strip-types --test test/*.test.mjs",
+		"release": "semantic-release",
+		"release:dry-run": "semantic-release --dry-run"
 	},
 	"keywords": [
 		"obsidian",
@@ -20,10 +30,19 @@
 	"devDependencies": {
 		"@codemirror/state": "^6.7.1",
 		"@codemirror/view": "^6.43.7",
+		"@semantic-release/changelog": "^7.0.0",
+		"@semantic-release/commit-analyzer": "^13.0.1",
+		"@semantic-release/exec": "^7.1.0",
+		"@semantic-release/git": "^11.0.1",
+		"@semantic-release/github": "^12.0.10",
+		"@semantic-release/npm": "^13.2.0",
+		"@semantic-release/release-notes-generator": "^14.1.1",
 		"@types/node": "^20.11.30",
 		"builtin-modules": "^3.3.0",
+		"conventional-changelog-conventionalcommits": "^9.3.1",
 		"esbuild": "^0.20.2",
 		"obsidian": "latest",
+		"semantic-release": "^25.0.9",
 		"typescript": "^5.4.3"
 	},
 	"allowScripts": {

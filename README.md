@@ -253,9 +253,8 @@ note content from reports.
 
 ## Development
 
-Building from source requires Node.js and npm. Use a Node.js version that supports
-`--experimental-strip-types` to run the tests
-([Node.js 22.6](https://nodejs.org/en/blog/release/v22.6.0) or later).
+Building from source requires Node.js 24.10 or later and npm. The GitHub Actions
+workflow uses Node.js 24; run `nvm use` to select it locally if you use nvm.
 
 From a local checkout of this repository:
 
@@ -288,7 +287,45 @@ Tests cover callout parsing, Markdown write-back, response parsing, provider
 arguments/events, and model/effort discovery parsing. They do not run real agents
 or verify the interface inside Obsidian.
 
-For a release, attach the built `main.js`, `manifest.json`, and `styles.css` as
-individual assets to a GitHub release whose tag matches `manifest.json`'s version.
+## Releases and commit messages
+
+[semantic-release](https://semantic-release.gitbook.io/semantic-release/) runs in
+GitHub Actions after tests and the production build pass on `main`. Pull requests
+run the same checks without publishing. Use
+[Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) for commit
+messages (and squash-merge titles):
+
+| Commit | Release |
+| --- | --- |
+| `fix: correct callout parsing` | Patch, such as `1.0.0` → `1.0.1` |
+| `feat: add a new provider` | Minor, such as `1.0.0` → `1.1.0` |
+| `feat!: change the callout format` or a `BREAKING CHANGE:` footer | Major, such as `1.0.0` → `2.0.0` |
+| `docs:`, `chore:`, `ci:`, `test:`, or `refactor:` without breaking changes | No release |
+
+The largest applicable bump wins when several commits land together. With no
+existing release tags, the first automated release is `1.0.0`. Subsequent releases
+are calculated from commits since the last release tag; do not bump versions or
+create release tags manually.
+
+For each release, the workflow:
+
+1. Updates `package.json`, `package-lock.json`, and `manifest.json` to the same
+   version and records its minimum Obsidian version in `versions.json`.
+2. Rebuilds the plugin and generates [CHANGELOG.md](./CHANGELOG.md) and GitHub
+   release notes from the commits.
+3. Commits the changelog and version files with `chore(release): … [skip ci]`.
+4. Creates a tag in `x.y.z` format and publishes a GitHub release with `main.js`,
+   `manifest.json`, and `styles.css` as individual downloadable assets.
+
+The release job uses GitHub's built-in `GITHUB_TOKEN` with `contents: write`;
+no extra secret or npm publishing token is required. If `main` is protected by
+branch rules, those rules must allow the release bot to push the generated
+version/changelog commit. The workflow can also be run from the Actions tab on
+`main`; it uses the same commit analysis to decide whether a release is needed.
+
+To preview release analysis locally, provide a GitHub token with repository
+access through `GITHUB_TOKEN` and run `npm run release:dry-run` on `main`. Dry runs
+do not update version files, build release assets, commit, tag, or publish.
+
 See [Obsidian's publishing guide](https://docs.obsidian.md/Plugins/Releasing/Submit%20your%20plugin)
-for the full submission process.
+for the community-directory submission process and release asset requirements.
