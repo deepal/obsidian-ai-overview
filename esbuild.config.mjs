@@ -77,7 +77,8 @@ const context = await esbuild.context({
 		"node:*",
 	],
 	format: "cjs",
-	target: "es2018",
+	// Obsidian desktop 1.13 supports ES2020, including the TOML parser's BigInt.
+	target: "es2020",
 	logLevel: "info",
 	sourcemap: prod ? false : "inline",
 	treeShaking: true,

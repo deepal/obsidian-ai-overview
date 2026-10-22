@@ -36,7 +36,7 @@ function fixture() {
 test("indexing settings never launches model discovery", () => {
 	const f = fixture();
 	const definitions = f.tab.getSettingDefinitions();
-	assert.equal(definitions.length, 7);
+	assert.equal(definitions.length, 8);
 	assert.equal(f.loads(), 0);
 	assert.ok(definitions.every((definition) => definition.name));
 });
@@ -62,4 +62,21 @@ test("Claude effort-only discovery starts from rendering, not indexing", () => {
 	assert.equal(f.loads(), 0);
 	definitions.find((d) => d.name === "Effort level").render(f.setting);
 	assert.equal(f.loads(), 1);
+});
+
+test("agent name tag removes typed and pasted whitespace from the field and saved value",async(t)=>{
+ const f=fixture();f.plugin.saveSettings=async()=>{};
+ let change;const text={value:"",setPlaceholder(){return this;},setValue(value){this.value=value;return this;},onChange(fn){change=fn;return this;}};
+ const fragments=[];const desc={append:(...items)=>fragments.push(...items),createEl(){const link={};fragments.push(link);return link;}};
+ globalThis.createFragment=()=>desc;t.after(()=>{delete globalThis.createFragment;});
+ const setting={setDesc(value){assert.equal(value,desc);},addText:fn=>fn(text)};
+ f.tab.getSettingDefinitions().find(d=>d.name==="Agent name tag").render(setting);
+ assert.deepEqual(fragments.filter(item=>typeof item==="object").map(link=>[link.textContent,link.href]),[
+  ["Obsidian Discussions","https://community.obsidian.md/plugins/comment-block"],
+  ["Obsidian Inline Review Comments","https://community.obsidian.md/plugins/inline-review-comment"]
+ ]);
+ for(const value of ["sonny ","son ny"," sonny\t\n", "son\u00a0ny"]){
+  text.value=value;await change(value);assert.equal(text.value,"sonny");assert.equal(f.plugin.settings.agentNameTag,"sonny");
+ }
+ await change("");assert.equal(f.plugin.settings.agentNameTag,"");
 });

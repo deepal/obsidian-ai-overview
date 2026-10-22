@@ -1,3 +1,4 @@
+import { normalizeTag } from "./agent-bridge.ts";
 import { App, PluginSettingTab, type Setting, type SettingDefinitionItem } from "obsidian";
 import { effortOptions, type Catalogue } from "./discover.ts";
 import { getProvider, PROVIDER_IDS, type Provider, type ProviderId } from "./providers.ts";
@@ -24,6 +25,35 @@ export class AiOverviewSettingTab extends PluginSettingTab {
 		const command = this.plugin.command();
 		const catalogue = this.plugin.catalogue.peek(active, command);
 		return [
+			{
+				name: "Agent name tag",
+				desc: "Mention this agent in the Obsidian Discussions or Obsidian Inline Review Comments plugin to request a reply or immediate edits to vault notes. Leave blank to disable. No spaces. Letters, numbers, underscores and hyphens; start with a letter.",
+				render: (setting) => {
+					const desc = createFragment();
+					desc.append("Mention this agent in the ");
+					for (const [index, [name, url]] of [
+						["Obsidian Discussions", "https://community.obsidian.md/plugins/comment-block"],
+						["Obsidian Inline Review Comments", "https://community.obsidian.md/plugins/inline-review-comment"],
+					].entries()) {
+						if (index) desc.append(" or ");
+						const link = desc.createEl("a");
+						link.textContent = name;
+						link.href = url;
+						link.target = "_blank";
+						link.rel = "noopener noreferrer";
+					}
+					desc.append(" plugin to request a reply or immediate edits to vault notes. Leave blank to disable. No spaces. Letters, numbers, underscores and hyphens; start with a letter.");
+					setting.setDesc(desc);
+					setting.addText((text) => text
+						.setPlaceholder("Teddy").setValue(this.plugin.settings.agentNameTag)
+						.onChange(async (value) => {
+							const compact = value.replace(/\s/g, "");
+							if (compact !== value) text.setValue(compact);
+							this.plugin.settings.agentNameTag = normalizeTag(compact);
+							await this.plugin.saveSettings();
+						}));
+				},
+			},
 			{
 				name: "Agent CLI",
 				desc: "Which locally installed CLI generates overviews.",

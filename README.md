@@ -161,6 +161,32 @@ under **Settings → Hotkeys**.
 | Regenerate every overview in this note | Regenerates callouts with non-empty prompts, preserving summaries without metadata. Skips the callout containing the active cursor; move outside it before running this command. |
 | Show status for this note | Shows detected callouts, generation state, and recorded errors. |
 
+## Optional agent mentions
+
+With a compatible **AI Overview** plugin enabled on desktop, set **Settings → AI
+Overview → Agent name tag** to `teddy`. Submit a comment or reply containing
+`@teddy`, for example `@teddy Explain this paragraph` or `@teddy Update this note
+with the agreed action items`.
+
+The configured agent responds in the same thread. While it works, that thread
+shows a three-dot typing animation with the latest streamed activity beneath it
+in very small, muted text. Requested note edits
+are applied immediately and their actual outcomes are included in the reply.
+
+Comments typed directly into Markdown start only after you leave the completed
+comment. Existing mentions stay dormant when a note opens or the integration is
+enabled. Editing an answered comment does not rerun it; send a new mention reply.
+Failed requests offer **Retry**. **Cancel** stops active work; completed edits stay
+in place. Interrupted requests require an explicit retry after restarting.
+
+The integration is optional. Without compatible, enabled AI Overview and a
+nonempty name tag, the comment plugins retain their existing appearance,
+settings, shortcuts and behavior. They remain usable on mobile; agent execution
+requires desktop. Each plugin can be installed and updated independently.
+
+See [agent mention behavior and compatibility](docs/agent-mentions.md) for the
+supported edit operations, provider restrictions and recovery details.
+
 ## Settings
 
 | Setting | Purpose |
@@ -169,6 +195,7 @@ under **Settings → Hotkeys**.
 | CLI path | Executable name or absolute path. For a bare name, the plugin searches the inherited `PATH` plus common macOS/Linux install directories. |
 | Model | A dropdown for Codex and opencode, or a text field for Claude Code. **CLI default** or an empty field leaves the choice to the CLI. |
 | Reasoning effort / Effort level / Model variant | Available thinking levels reported by the selected CLI. **CLI default** leaves the choice to the CLI. |
+| Agent name tag | Optional mention name such as `teddy`, without `@`. Blank disables comment agents. Mentions can request replies and immediate note edits. |
 | Extra arguments | Additional arguments passed to the selected CLI's generation command. Quoted values are kept together. |
 | Environment variables | One `KEY=VALUE` per line, added to the CLI's inherited environment. Shared across CLIs. |
 | Timeout | Maximum generation time in seconds. Default: **300** (five minutes). |
@@ -242,7 +269,7 @@ can also find and read other accessible content in the vault without a link from
 the current note. File discovery and link resolution depend on the agent.
 The working directory is not itself a boundary on what files the CLI can read.
 
-The plugin asks every agent not to modify files. Its default invocation also:
+For overview callouts, the plugin asks every agent not to modify files. Its default invocation also:
 
 - runs **Codex** with `--sandbox read-only` and `--ephemeral`;
 - gives **Claude Code** `--allowed-tools Read,Grep,Glob` and
@@ -255,7 +282,7 @@ every CLI configuration or tool. Extra arguments and CLI configuration can
 change the agent's behavior and permissions. The plugin itself writes the final
 answer into your note.
 
-### Response format and metadata
+### Overview response format and metadata
 
 Codex receives a JSON schema through `--output-schema`; Claude Code and opencode
 are asked for a JSON object containing `title` and `body`. If the final response

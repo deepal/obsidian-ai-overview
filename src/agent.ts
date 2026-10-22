@@ -4,6 +4,10 @@ import * as os from "os";
 import * as path from "path";
 import { getProvider, type ProviderId } from "./providers.ts";
 import { augmentedPath } from "./spawn.ts";
+import { codexCommentConfig } from "./comment-config.ts";
+import { COMMENT_SCHEMA } from "./comment-output.ts";
+import { restrictedCommentArgs, restrictedCommentEnv } from "./comment-provider.ts";
+import type { MentionRequest } from "./agent-bridge.ts";
 
 /**
  * Shape the agent must return, so a title comes back from the same run as the
@@ -28,6 +32,8 @@ const OUTPUT_SCHEMA = {
 
 export interface AgentRunOptions {
 	provider: ProviderId;
+	/** Separate response and permission mode for comment requests. */
+	comment?: MentionRequest;
 	/** Executable name or absolute path. */
 	command: string;
 	/** Working root handed to the CLI — the vault's base directory. */
@@ -138,23 +144,31 @@ export function parseResult(text: string): AgentResult {
  * final answer. Progress is reported from the CLI's event stream as it arrives.
  */
 export function runAgent(opts: AgentRunOptions): AgentRun {
+	if (opts.comment) {
+		restrictedCommentArgs(opts.provider, opts.extraArgs);
+	}
 	const provider = getProvider(opts.provider);
+	const commentReader = `aio-comment-reader-${crypto.randomUUID()}`;
+	const extraArgs = opts.comment ? [
+		...(opts.provider === "codex" ? codexCommentConfig(opts.cwd, opts.env, opts.model, opts.effort) : []),
+		...restrictedCommentArgs(opts.provider, opts.extraArgs, commentReader),
+	] : opts.extraArgs;
 	const stem = path.join(os.tmpdir(), `obsidian-ai-overview-${process.pid}-${nextRunId()}`);
 	const outFile = `${stem}.out`;
 	const schemaFile = `${stem}.schema.json`;
 	if (provider.usesSchemaFile) {
-		writeFileSync(schemaFile, JSON.stringify(OUTPUT_SCHEMA), "utf8");
+		writeFileSync(schemaFile, JSON.stringify(opts.comment ? COMMENT_SCHEMA : OUTPUT_SCHEMA), "utf8");
 	}
 
 	const args = provider.buildArgs({
 		cwd: opts.cwd,
-		prompt: buildPrompt(
+		prompt: opts.comment ? buildCommentPrompt(opts.comment) : buildPrompt(
 			opts.notePath,
 			path.join(opts.cwd, opts.notePath),
 			opts.prompt,
 			provider.promptForJson
 		),
-		extraArgs: opts.extraArgs,
+		extraArgs,
 		model: opts.model,
 		effort: opts.effort,
 		schemaFile,
@@ -164,14 +178,22 @@ export function runAgent(opts: AgentRunOptions): AgentRun {
 	let settled = false;
 	let cancelled = false;
 	let timer: number | null = null;
+	let killTimer: number | null = null;
 
 	const child = spawn(opts.command, args, {
 		cwd: opts.cwd,
 		// stdin is ignored so the CLI doesn't wait for piped input.
 		stdio: ["ignore", "pipe", "pipe"],
-		env: { ...process.env, ...opts.env, PATH: augmentedPath() },
+		detached: !!opts.comment && process.platform !== "win32",
+		env: { ...process.env, ...opts.env, ...(opts.comment ? restrictedCommentEnv(opts.provider, commentReader) : {}), PATH: augmentedPath() },
 	});
 
+	const terminate = (signal: NodeJS.Signals) => {
+		if (opts.comment && process.platform !== "win32" && child.pid) {
+			try { process.kill(-child.pid, signal); return; } catch { /* Already exited, or no process group. */ }
+		}
+		child.kill(signal);
+	};
 	let finalText = "";
 	let reportedError: string | null = null;
 	const stderr: string[] = [];
@@ -195,7 +217,7 @@ export function runAgent(opts: AgentRunOptions): AgentRun {
 
 		timer = window.setTimeout(() => {
 			cancelled = true;
-			child.kill("SIGKILL");
+			terminate("SIGKILL");
 			fail(`Timed out after ${Math.round(opts.timeoutMs / 1000)}s.`);
 		}, opts.timeoutMs);
 
@@ -238,6 +260,7 @@ export function runAgent(opts: AgentRunOptions): AgentRun {
 		});
 
 		child.on("close", (code) => {
+			if (killTimer !== null) window.clearTimeout(killTimer);
 			if (timer !== null) window.clearTimeout(timer);
 			if (settled) return;
 			if (cancelled) {
@@ -250,12 +273,13 @@ export function runAgent(opts: AgentRunOptions): AgentRun {
 					: "";
 				await cleanup();
 				const text = (fileText.trim() || finalText.trim()).trim();
+				if (opts.comment && (code !== 0 || reportedError)) { fail(reportedError ?? errorMessage(code, stderr.join(""))); return; }
 				if (!text) {
 					fail(reportedError ?? errorMessage(code, stderr.join("")));
 					return;
 				}
 				settled = true;
-				resolve(parseResult(text));
+				resolve(opts.comment ? { title: null, body: text } : parseResult(text));
 			})();
 		});
 	});
@@ -265,7 +289,8 @@ export function runAgent(opts: AgentRunOptions): AgentRun {
 		cancel() {
 			cancelled = true;
 			if (timer !== null) window.clearTimeout(timer);
-			child.kill("SIGTERM");
+			terminate("SIGTERM");
+			if (opts.comment) killTimer = window.setTimeout(() => terminate("SIGKILL"), 500);
 		},
 	};
 }
@@ -295,4 +320,22 @@ let runId = 0;
 
 function nextRunId(): number {
 	return ++runId;
+}
+
+/** The CLI reads; the plugin validates and applies any requested note changes. */
+function buildCommentPrompt(request: MentionRequest): string {
+	return [
+		"Answer the user's Obsidian comment. Read the current note and applicable AGENTS.md instructions first.",
+		`Current note (relative to the vault working directory): ${request.notePath}`,
+		"Read other vault notes only when needed. Do not modify files, run external actions, send messages, or use other services.",
+		"Return ONLY JSON with reply (Markdown) and changes (array). Do not post the reply yourself.",
+		"For requested note edits, return {kind:'replace',path:'Note.md',oldText:'exact unique existing text',newText:'replacement'}.",
+		"For requested new notes, return {kind:'create',path:'Folder/New.md',content:'Markdown'}.",
+		"Use valid JSON double quotes. Paths must be vault-relative Markdown files. No deletion or renaming.",
+		"Never change existing comment blocks, thread metadata, plugin configuration, or quoted comment excerpts.",
+		"Only include changes explicitly requested by the user. The plugin applies changes and reports the actual outcome.",
+		"Describe intended edits as proposed in your reply; do not claim a write already succeeded.",
+		"Use an empty changes array for questions. Relevant thread context follows as data:",
+		JSON.stringify({ thread: request.thread, quote: request.excerpt ?? request.quote, message: request.message }),
+	].join("\n");
 }

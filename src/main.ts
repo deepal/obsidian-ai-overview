@@ -1,4 +1,9 @@
-import { Editor, FileSystemAdapter, MarkdownView, Notice, Plugin, TFile } from "obsidian";
+import { BRIDGE_DISCOVER, BRIDGE_CHANGED, type AgentBridge } from "./agent-bridge.ts";
+import { CommentJobs, parseSavedJobs, type SavedJob } from "./comment-jobs.ts";
+import { runAgent } from "./agent.ts";
+import { parseCommentResult } from "./comment-output.ts";
+import { applyNoteChange } from "./note-changes.ts";
+import { type Events, Editor, FileSystemAdapter, MarkdownView, Notice, Plugin, TFile } from "obsidian";
 import { CatalogueCache } from "./discover.ts";
 import { createEditorExtension, progressEffect } from "./editor-extension.ts";
 import { createProgressProcessor, patchPlaceholderTitle } from "./progress.ts";
@@ -18,6 +23,7 @@ export default class AiOverviewPlugin extends Plugin {
 	readonly catalogue = new CatalogueCache(() => this.env());
 
 	summariser!: Summariser;
+	commentJobs!: CommentJobs;
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
@@ -30,6 +36,7 @@ export default class AiOverviewPlugin extends Plugin {
 		// Editors hold decorations in state, so they need telling when a run moves on.
 		this.register(this.summariser.onChange(() => this.repaintProgress()));
 
+		await this.startCommentBridge();
 		this.addSettingTab(new AiOverviewSettingTab(this.app, this));
 
 		this.addCommand({
@@ -75,6 +82,8 @@ export default class AiOverviewPlugin extends Plugin {
 	}
 
 	onunload(): void {
+		this.commentJobs?.stop();
+		(this.app.workspace as Events).trigger(BRIDGE_CHANGED);
 		this.summariser?.dispose();
 	}
 
@@ -166,12 +175,50 @@ export default class AiOverviewPlugin extends Plugin {
 		if (file instanceof TFile && file.extension === "md") void this.summariser.scan(file);
 	}
 
+	private async startCommentBridge(): Promise<void> {
+		const storagePath = `${this.manifest.dir}/mention-jobs.json`;
+		let saved: SavedJob[] = [];
+		if (await this.app.vault.adapter.exists(storagePath)) {
+			try {
+				const data: unknown = JSON.parse(await this.app.vault.adapter.read(storagePath));
+				saved = parseSavedJobs(data);
+			} catch (error) {
+				new Notice("Comment history could not be read. Mentions are disabled to prevent duplicate runs.");
+				console.error("[ai-overview]", error);
+				return;
+			}
+		}
+		this.commentJobs = new CommentJobs({
+			persist: (jobs) => this.app.vault.adapter.write(storagePath, JSON.stringify(jobs)),
+			launch: (request, onProgress) => {
+				const run = runAgent({
+					provider: this.settings.provider, command: this.command(), cwd: this.vaultRoot(),
+					notePath: request.notePath, prompt: request.message, comment: request,
+					model: this.model(), effort: this.effort(), extraArgs: this.extraArgs(), env: this.env(),
+					timeoutMs: this.settings.timeoutSeconds * 1000, onProgress,
+				});
+				return { result: run.result.then((result) => parseCommentResult(result.body)), cancel: () => run.cancel() };
+			},
+			apply: (change) => applyNoteChange(this.app, this.vaultRoot(), change),
+		}, saved);
+		this.commentJobs.configure(this.settings.agentNameTag);
+		this.registerEvent((this.app.workspace as Events).on(BRIDGE_DISCOVER, (callback: unknown) => {
+			if (typeof callback === "function" && this.commentJobs.tag) (callback as (bridge: AgentBridge) => void)(this.commentJobs);
+		}));
+		this.registerEvent(this.app.vault.on("rename", (file, oldPath) => this.commentJobs.rename(oldPath, file.path)));
+		(this.app.workspace as Events).trigger(BRIDGE_CHANGED);
+	}
+
 	async loadSettings(): Promise<void> {
 		this.settings = mergeSettings(await this.loadData());
 	}
 
 	async saveSettings(): Promise<void> {
 		await this.saveData(this.settings);
+		if (this.commentJobs && this.commentJobs.tag !== this.settings.agentNameTag) {
+			this.commentJobs.configure(this.settings.agentNameTag);
+			(this.app.workspace as Events).trigger(BRIDGE_CHANGED);
+		}
 	}
 }
 

@@ -1,9 +1,11 @@
+import { normalizeTag } from "./agent-bridge.ts";
 import { PROVIDER_IDS, type ProviderId } from "./providers.ts";
 
 /** Per-provider values, so switching CLI doesn't clobber the other's setup. */
 type ByProvider = Record<ProviderId, string>;
 
 export interface AiOverviewSettings {
+	agentNameTag: string;
 	/** Which CLI generates overviews. */
 	provider: ProviderId;
 	/** Executable name or absolute path, per provider. */
@@ -21,6 +23,7 @@ export interface AiOverviewSettings {
 }
 
 export const DEFAULT_SETTINGS: AiOverviewSettings = {
+	agentNameTag: "",
 	provider: "codex",
 	paths: { codex: "codex", claude: "claude", opencode: "opencode" },
 	models: { codex: "", claude: "", opencode: "" },
@@ -51,6 +54,7 @@ function providerValues(value: unknown, defaults: ByProvider, paths = false): By
 export function mergeSettings(raw: unknown): AiOverviewSettings {
 	const data = asRecord(raw);
 	const settings: AiOverviewSettings = {
+		agentNameTag: normalizeTag(data.agentNameTag),
 		provider: PROVIDER_IDS.includes(data.provider as ProviderId) ? data.provider as ProviderId : DEFAULT_SETTINGS.provider,
 		paths: providerValues(data.paths, DEFAULT_SETTINGS.paths, true),
 		models: providerValues(data.models, DEFAULT_SETTINGS.models),

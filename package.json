@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-ai-overview",
-	"version": "2.0.1",
+	"version": "3.0.0",
 	"private": true,
 	"repository": {
 		"type": "git",
@@ -41,11 +41,11 @@
 		"@types/node": "^20.11.30",
 		"conventional-changelog-conventionalcommits": "^9.3.1",
 		"esbuild": "^0.20.2",
+		"eslint": "9.39.5",
+		"eslint-plugin-obsidianmd": "0.4.2",
 		"obsidian": "1.13.1",
 		"semantic-release": "^25.0.9",
-		"typescript": "^5.4.3",
-		"eslint": "9.39.5",
-		"eslint-plugin-obsidianmd": "0.4.2"
+		"typescript": "^5.4.3"
 	},
 	"allowScripts": {
 		"esbuild@0.20.2": true
@@ -54,5 +54,8 @@
 		"eslint-plugin-obsidianmd": {
 			"obsidian": "$obsidian"
 		}
+	},
+	"dependencies": {
+		"smol-toml": "1.9.1"
 	}
 }
