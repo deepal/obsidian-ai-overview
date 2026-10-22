@@ -1,3 +1,13 @@
+## [3.0.0](https://github.com/deepal/obsidian-ai-overview/compare/2.0.1...3.0.0) (2026-10-22)
+
+### ⚠ BREAKING CHANGES
+
+* run comment mentions with configured agents
+
+### Features
+
+* run comment mentions with configured agents ([27680df](https://github.com/deepal/obsidian-ai-overview/commit/27680dfb10451d8cfb275192a5975ced8d819541))
+
 ## [2.0.1](https://github.com/deepal/obsidian-ai-overview/compare/2.0.0...2.0.1) (2026-10-05)
 
 ### Bug Fixes
