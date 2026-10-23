@@ -27,7 +27,7 @@ export class AiOverviewSettingTab extends PluginSettingTab {
 		return [
 			{
 				name: "Agent name tag",
-				desc: "Mention this agent in the Obsidian Discussions or Obsidian Inline Review Comments plugin to request a reply or immediate edits to vault notes. Leave blank to disable. No spaces. Letters, numbers, underscores and hyphens; start with a letter.",
+				desc: "Mention this agent in the Obsidian Discussions or Obsidian Inline Review Comments plugin to request work using the CLI's configured permissions, tools and integrations. Changes take effect directly; retries may repeat actions. Additional permission must be configured outside Obsidian. Leave blank to disable. No spaces. Letters, numbers, underscores and hyphens; start with a letter.",
 				render: (setting) => {
 					const desc = createFragment();
 					desc.append("Mention this agent in the ");
@@ -42,7 +42,7 @@ export class AiOverviewSettingTab extends PluginSettingTab {
 						link.target = "_blank";
 						link.rel = "noopener noreferrer";
 					}
-					desc.append(" plugin to request a reply or immediate edits to vault notes. Leave blank to disable. No spaces. Letters, numbers, underscores and hyphens; start with a letter.");
+					desc.append(" plugin to request work using the CLI's configured permissions, tools and integrations. Changes take effect directly; retries may repeat actions. Additional permission must be configured outside Obsidian. Leave blank to disable. No spaces. Letters, numbers, underscores and hyphens; start with a letter.");
 					setting.setDesc(desc);
 					setting.addText((text) => text
 						.setPlaceholder("Teddy").setValue(this.plugin.settings.agentNameTag)

@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { parseCommentResult, safeReplacement, validateNotePath } from "../src/comment-output.ts";
-import { restrictedCommentArgs, restrictedCommentEnv } from "../src/comment-provider.ts";
-import { safeCodexDefaults } from "../src/comment-config.ts";
+import { parseCommentReply, parseCommentResult, safeReplacement, validateNotePath } from "../src/comment-output.ts";
+import { commentArgs, commentEventError } from "../src/comment-provider.ts";
 import { mergeSettings } from "../src/settings-data.ts";
 
 test("comment output requires an explicit reply and valid note operations", () => {
@@ -25,36 +24,23 @@ test("name tags are opt-in, normalized and validated", () => {
 	assert.equal(mergeSettings({}).agentNameTag, ""); assert.equal(mergeSettings({ agentNameTag: " @teddy " }).agentNameTag, "teddy");
 	assert.equal(mergeSettings({ agentNameTag: "two words" }).agentNameTag, "");
 });
-test("comment CLI restrictions cannot be replaced by extra arguments", () => {
-	for (const provider of ["codex", "claude", "opencode"]) {
-		for (const args of [["--dangerously-bypass-approvals-and-sandbox"], ["--agent", "build"], ["--tools", "Bash"], ["-c", "approval_policy=never"]]) assert.throws(() => restrictedCommentArgs(provider, args));
-	}
-	assert.ok(restrictedCommentArgs("codex", ["-c", "model_verbosity=low"]).includes("--ignore-user-config"));
-	assert.ok(restrictedCommentArgs("claude", []).includes("--strict-mcp-config"));
-	const config = JSON.parse(restrictedCommentEnv("opencode").OPENCODE_CONFIG_CONTENT);
-	assert.equal(config.permission, "deny");
-	assert.equal(config.agent["aio-comment-reader"].permission["*"], "deny");
-	assert.equal(config.agent["aio-comment-reader"].permission.read, "allow");
+test("reply-only output rejects planned edits, empty replies and malformed results", () => {
+ assert.deepEqual(parseCommentReply('{"reply":"Done"}'),{reply:"Done"});
+ for(const text of ['{"reply":"Done","changes":[]}','{"reply":""}','null','[]','plain answer'])assert.throws(()=>parseCommentReply(text));
 });
 
-test("Codex defaults preserve model routing without inheriting executable configuration", () => {
- const config=`model = "configured-model"
-model_provider = "local"
-model_reasoning_effort = "high"
-[model_providers.local]
-name = "Local model"
-base_url = "http://localhost:1234/v1"
-env_key = "LOCAL_MODEL_KEY"
-wire_api = "responses"
-[mcp_servers.unwanted]
-command = "unwanted-command"
-[hooks.SessionStart]
-command = "unwanted-hook"
-`;
- const inherited=safeCodexDefaults(config,"","").join(" ");
- assert.match(inherited,/configured-model/);assert.match(inherited,/model_providers/);assert.match(inherited,/localhost:1234/);
- assert.doesNotMatch(inherited,/unwanted/);
- const explicit=safeCodexDefaults(config,"explicit-model","low").join(" ");
- assert.doesNotMatch(explicit,/configured-model|model_reasoning_effort/);
- assert.throws(()=>safeCodexDefaults('api_key_helper = "execute something"',"",""),/api_key_helper/);
+test("comment arguments retain user permissions, tools and profiles but reserve transport and sessions",()=>{
+ assert.deepEqual(commentArgs("codex",["--profile","work","--sandbox=workspace-write","-c","model_verbosity=low"]),["--profile","work","--sandbox=workspace-write","-c","model_verbosity=low"]);
+ assert.deepEqual(commentArgs("claude",["--permission-mode","acceptEdits","--allowedTools","Read,Edit"]),["--permission-mode","acceptEdits","--allowedTools","Read,Edit","--permission-prompts","none"]);
+ assert.deepEqual(commentArgs("opencode",["--agent","work"]),["--agent","work"]);
+ assert.deepEqual(commentArgs("claude",["--allowedTools","Read","Edit","--add-dir","/tmp/one","/tmp/two"]),["--allowedTools","Read","Edit","--add-dir","/tmp/one","/tmp/two","--permission-prompts","none"]);
+ assert.throws(()=>commentArgs("codex",["--profile","--json"]),/Missing value/);
+ for(const [provider,flags] of [["codex",["--json","--output-schema=x","-ooutput","resume","--cd"]],["claude",["--output-format=json","--resume","--permission-prompts=default","--no-verbose"]],["opencode",["--format=json","--session=old","--attach=http://localhost","--interactive"]]]){
+  for(const flag of flags)assert.throws(()=>commentArgs(provider,[flag]),/conflicting/);
+ }
+});
+
+test("provider approval denials are actionable execution errors",()=>{
+ for(const [provider,event] of [["codex",{type:"turn.failed",error:{message:"sandbox permission denied"}}],["claude",{type:"result",permission_denials:[{tool_name:"Edit"}]}],["opencode",{type:"permission.asked"}]])assert.match(commentEventError(provider,event),/permission|approval/i);
+ assert.equal(commentEventError("codex",{type:"thread.started"}),null);
 });

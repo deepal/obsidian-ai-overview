@@ -3,17 +3,25 @@ export type NoteChange =
 	| { kind: "replace"; path: string; oldText: string; newText: string };
 export interface CommentResult { reply: string; changes: NoteChange[] }
 
+export interface CommentReply { reply: string }
 export const COMMENT_SCHEMA = {
-	type: "object",
-	properties: {
-		reply: { type: "string" },
-		changes: { type: "array", items: { anyOf: [
-			{ type: "object", properties: { kind: { type: "string", enum: ["create"] }, path: { type: "string" }, content: { type: "string" } }, required: ["kind", "path", "content"], additionalProperties: false },
-			{ type: "object", properties: { kind: { type: "string", enum: ["replace"] }, path: { type: "string" }, oldText: { type: "string" }, newText: { type: "string" } }, required: ["kind", "path", "oldText", "newText"], additionalProperties: false },
-		] } },
-	},
-	required: ["reply", "changes"], additionalProperties: false,
+	type: "object", properties: { reply: { type: "string" } },
+	required: ["reply"], additionalProperties: false,
 };
+
+export function parseCommentReply(text: string): CommentReply {
+	let value: unknown;
+	try {
+		value = JSON.parse(text.trim().replace(/^```(?:json)?\s*\n?/, "").replace(/\n?```$/, ""));
+	} catch {
+		throw new Error("The agent returned invalid reply JSON. Work may already have taken effect; inspect current files before retrying.");
+	}
+	if (!value || typeof value !== "object" || Array.isArray(value) ||
+		Object.keys(value).length !== 1 || !("reply" in value) || typeof value.reply !== "string" || !value.reply.trim()) {
+		throw new Error("The agent must return only a nonempty Markdown reply. Work may already have taken effect; inspect current files before retrying.");
+	}
+	return { reply: value.reply };
+}
 
 /** Unlike overview text, a malformed comment result must never be applied. */
 export function parseCommentResult(text: string): CommentResult {

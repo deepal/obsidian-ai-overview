@@ -18,6 +18,7 @@ export interface Listing<T> {
 }
 
 export interface ProviderRunContext {
+	mode?: "overview" | "comment";
 	/** Working root for the CLI — the vault's base directory. */
 	cwd: string;
 	/** The composed prompt, passed as a single argument. */
@@ -237,8 +238,7 @@ const codex: Provider = {
 			"exec",
 			"--cd",
 			ctx.cwd,
-			"--sandbox",
-			"read-only",
+			...(ctx.mode === "comment" ? [] : ["--sandbox", "read-only"]),
 			"--skip-git-repo-check",
 			"--ephemeral",
 			"--color",
@@ -307,14 +307,8 @@ const claude: Provider = {
 		const args = [ctx.prompt, "--print", "--output-format", "stream-json", "--verbose"];
 		if (ctx.model) args.push("--model", ctx.model);
 		if (ctx.effort) args.push("--effort", ctx.effort);
-		args.push(
-			...ctx.extraArgs,
-			// Read-only by construction: anything that could touch the vault is denied.
-			"--allowed-tools",
-			"Read,Grep,Glob",
-			"--disallowed-tools",
-			"Edit,Write,NotebookEdit,Bash"
-		);
+		args.push(...ctx.extraArgs);
+		if (ctx.mode !== "comment") args.push("--allowed-tools", "Read,Grep,Glob", "--disallowed-tools", "Edit,Write,NotebookEdit,Bash");
 		return args;
 	},
 

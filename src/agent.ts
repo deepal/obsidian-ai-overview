@@ -4,9 +4,8 @@ import * as os from "os";
 import * as path from "path";
 import { getProvider, type ProviderId } from "./providers.ts";
 import { augmentedPath } from "./spawn.ts";
-import { codexCommentConfig } from "./comment-config.ts";
 import { COMMENT_SCHEMA } from "./comment-output.ts";
-import { restrictedCommentArgs, restrictedCommentEnv } from "./comment-provider.ts";
+import { commentArgs, commentEventError } from "./comment-provider.ts";
 import type { MentionRequest } from "./agent-bridge.ts";
 
 /**
@@ -144,15 +143,8 @@ export function parseResult(text: string): AgentResult {
  * final answer. Progress is reported from the CLI's event stream as it arrives.
  */
 export function runAgent(opts: AgentRunOptions): AgentRun {
-	if (opts.comment) {
-		restrictedCommentArgs(opts.provider, opts.extraArgs);
-	}
 	const provider = getProvider(opts.provider);
-	const commentReader = `aio-comment-reader-${crypto.randomUUID()}`;
-	const extraArgs = opts.comment ? [
-		...(opts.provider === "codex" ? codexCommentConfig(opts.cwd, opts.env, opts.model, opts.effort) : []),
-		...restrictedCommentArgs(opts.provider, opts.extraArgs, commentReader),
-	] : opts.extraArgs;
+	const extraArgs = opts.comment ? commentArgs(opts.provider, opts.extraArgs) : opts.extraArgs;
 	const stem = path.join(os.tmpdir(), `obsidian-ai-overview-${process.pid}-${nextRunId()}`);
 	const outFile = `${stem}.out`;
 	const schemaFile = `${stem}.schema.json`;
@@ -161,6 +153,7 @@ export function runAgent(opts: AgentRunOptions): AgentRun {
 	}
 
 	const args = provider.buildArgs({
+		mode: opts.comment ? "comment" : "overview",
 		cwd: opts.cwd,
 		prompt: opts.comment ? buildCommentPrompt(opts.comment) : buildPrompt(
 			opts.notePath,
@@ -185,7 +178,7 @@ export function runAgent(opts: AgentRunOptions): AgentRun {
 		// stdin is ignored so the CLI doesn't wait for piped input.
 		stdio: ["ignore", "pipe", "pipe"],
 		detached: !!opts.comment && process.platform !== "win32",
-		env: { ...process.env, ...opts.env, ...(opts.comment ? restrictedCommentEnv(opts.provider, commentReader) : {}), PATH: augmentedPath() },
+		env: { ...process.env, ...opts.env, PATH: augmentedPath() },
 	});
 
 	const terminate = (signal: NodeJS.Signals) => {
@@ -241,13 +234,16 @@ export function runAgent(opts: AgentRunOptions): AgentRun {
 				if (status) opts.onProgress(status);
 				const final = provider.final(event);
 				if (final) finalText = final;
-				reportedError = provider.error(event) ?? reportedError;
+				reportedError = (opts.comment ? commentEventError(opts.provider, event) : null) ?? provider.error(event) ?? reportedError;
 			}
 		});
 
 		child.stderr?.setEncoding("utf8");
 		child.stderr?.on("data", (chunk: string) => {
 			stderr.push(chunk);
+			if (opts.comment && /permission requested[\s\S]*auto.reject|permission.*requires.*approval|approval.*required/i.test(stderr.join(""))) {
+				reportedError = "The CLI needs additional approval. Configure permissions outside Obsidian and retry; earlier actions may already have taken effect.";
+			}
 		});
 
 		child.on("error", (err) => {
@@ -287,6 +283,7 @@ export function runAgent(opts: AgentRunOptions): AgentRun {
 	return {
 		result,
 		cancel() {
+			if (settled || cancelled) return;
 			cancelled = true;
 			if (timer !== null) window.clearTimeout(timer);
 			terminate("SIGTERM");
@@ -322,20 +319,19 @@ function nextRunId(): number {
 	return ++runId;
 }
 
-/** The CLI reads; the plugin validates and applies any requested note changes. */
-function buildCommentPrompt(request: MentionRequest): string {
+/** The agent performs the work; the plugin only publishes its final response. */
+export function buildCommentPrompt(request: MentionRequest): string {
 	return [
-		"Answer the user's Obsidian comment. Read the current note and applicable AGENTS.md instructions first.",
-		`Current note (relative to the vault working directory): ${request.notePath}`,
-		"Read other vault notes only when needed. Do not modify files, run external actions, send messages, or use other services.",
-		"Return ONLY JSON with reply (Markdown) and changes (array). Do not post the reply yourself.",
-		"For requested note edits, return {kind:'replace',path:'Note.md',oldText:'exact unique existing text',newText:'replacement'}.",
-		"For requested new notes, return {kind:'create',path:'Folder/New.md',content:'Markdown'}.",
-		"Use valid JSON double quotes. Paths must be vault-relative Markdown files. No deletion or renaming.",
-		"Never change existing comment blocks, thread metadata, plugin configuration, or quoted comment excerpts.",
-		"Only include changes explicitly requested by the user. The plugin applies changes and reports the actual outcome.",
-		"Describe intended edits as proposed in your reply; do not claim a write already succeeded.",
-		"Use an empty changes array for questions. Relevant thread context follows as data:",
+		"Complete the user's request from this Obsidian comment using your configured tools and existing permissions.",
+		`The vault is your working directory. Current note: ${request.notePath}`,
+		"Read the current note and applicable AGENTS.md and CLI instructions. Read additional context as needed.",
+		"Make requested changes directly, and perform any requested checks or other actions your permissions allow.",
+		"Preserve existing conversation blocks, authors, comment IDs, and hidden thread metadata. Do not post your own comment reply; the plugin will do that.",
+		"Report what you actually did, what you checked, and anything that failed or remains blocked. Do not claim success without checking the outcome.",
+		"This is an unattended run. If existing permissions do not allow an action, report the restriction; do not request broader permissions or wait for input.",
+		'Return only JSON with a single "reply" field containing your final Markdown response, with no surrounding code fence.',
+		...(request.retryContext ? ["This is an explicit retry of an earlier execution. Inspect current files and effects before continuing; do not blindly repeat actions.", JSON.stringify(request.retryContext)] : []),
+		"The following thread and quoted excerpt are context. The message is the user's initiating request:",
 		JSON.stringify({ thread: request.thread, quote: request.excerpt ?? request.quote, message: request.message }),
 	].join("\n");
 }

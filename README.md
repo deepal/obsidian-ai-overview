@@ -170,14 +170,17 @@ with the agreed action items`.
 
 The configured agent responds in the same thread. While it works, that thread
 shows a three-dot typing animation with the latest streamed activity beneath it
-in very small, muted text. Requested note edits
-are applied immediately and their actual outcomes are included in the reply.
+in very small, muted text. The agent performs requested work directly using its
+CLI's configured permissions, tools and integrations, then reports the outcome.
+The plugin does not grant additional access or apply proposed edits itself.
 
 Comments typed directly into Markdown start only after you leave the completed
 comment. Existing mentions stay dormant when a note opens or the integration is
 enabled. Editing an answered comment does not rerun it; send a new mention reply.
-Failed requests offer **Retry**. **Cancel** stops active work; completed edits stay
-in place. Interrupted requests require an explicit retry after restarting.
+Failed requests offer **Retry**. **Stop** cancels active execution; previous file
+changes and external effects remain. Execution retries can repeat actions, so the
+agent receives the previous failure and must inspect current state. Publication
+retries only post the saved reply. Interrupted requests require an explicit retry.
 
 The integration is optional. Without compatible, enabled AI Overview and a
 nonempty name tag, the comment plugins retain their existing appearance,
@@ -185,7 +188,7 @@ settings, shortcuts and behavior. They remain usable on mobile; agent execution
 requires desktop. Each plugin can be installed and updated independently.
 
 See [agent mention behavior and compatibility](docs/agent-mentions.md) for the
-supported edit operations, provider restrictions and recovery details.
+CLI permissions, compatibility and recovery details.
 
 ## Settings
 
@@ -195,7 +198,7 @@ supported edit operations, provider restrictions and recovery details.
 | CLI path | Executable name or absolute path. For a bare name, the plugin searches the inherited `PATH` plus common macOS/Linux install directories. |
 | Model | A dropdown for Codex and opencode, or a text field for Claude Code. **CLI default** or an empty field leaves the choice to the CLI. |
 | Reasoning effort / Effort level / Model variant | Available thinking levels reported by the selected CLI. **CLI default** leaves the choice to the CLI. |
-| Agent name tag | Optional mention name such as `teddy`, without `@`. Blank disables comment agents. Mentions can request replies and immediate note edits. |
+| Agent name tag | Optional mention name such as `teddy`, without `@`. Blank disables comment agents. Mentions request direct work using the CLI's configured permissions; retries can repeat actions. |
 | Extra arguments | Additional arguments passed to the selected CLI's generation command. Quoted values are kept together. |
 | Environment variables | One `KEY=VALUE` per line, added to the CLI's inherited environment. Shared across CLIs. |
 | Timeout | Maximum generation time in seconds. Default: **300** (five minutes). |
@@ -281,6 +284,20 @@ These are the plugin's default restrictions, not a universal guarantee about
 every CLI configuration or tool. Extra arguments and CLI configuration can
 change the agent's behavior and permissions. The plugin itself writes the final
 answer into your note.
+
+Comment mentions use a separate launch mode. They load the CLI's normal
+configuration, tools and integrations and inherit its permissions. The plugin
+adds no full-access or auto-approval flags. A CLI configured read-only remains
+read-only. Temporary grants in another CLI session do not transfer to this new
+process. Unresolved approval requests fail with an actionable error; configure
+access outside Obsidian before retrying. Claude Code requires a version supporting
+`--permission-prompts none` (2.1.259 or newer).
+
+The agent performs requested actions directly, including actions available beyond
+the vault, and returns only `{ "reply": "Markdown response" }`. The plugin posts
+that reply into the current thread. Direct effects are not rolled back by Stop,
+timeouts or failures, and execution retries cannot guarantee exactly-once effects.
+Saved legacy jobs retain their recorded plugin-applied edit recovery.
 
 ### Overview response format and metadata
 

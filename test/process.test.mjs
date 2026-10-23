@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { mkdtemp, writeFile, chmod, rm, readdir } from "node:fs/promises";
+import { mkdtemp, writeFile, chmod, rm, readdir, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runAgent } from "../src/agent.ts";
+import { parseCommentReply } from "../src/comment-output.ts";
 import { runCapture } from "../src/spawn.ts";
 import { CatalogueCache } from "../src/discover.ts";
 
@@ -73,32 +74,33 @@ test("Claude subprocess fixture returns structured output and reports provider e
 });
 
 for (const provider of ["codex", "claude", "opencode"]) {
- test(`${provider} comment subprocess returns structured changes with restricted tools`, async (t) => {
+ test(`${provider} comment subprocess inherits configuration and writes files directly`, async (t) => {
   const f = await fixture(t, `
    import { writeFileSync } from 'node:fs';
    import assert from 'node:assert/strict';
    const args=process.argv.slice(2), provider=process.env.FIXTURE_PROVIDER;
-   const answer=JSON.stringify({reply:'Synthetic response',changes:[{kind:'create',path:'New.md',content:'Body'}]});
+   const answer=JSON.stringify({reply:'Edited New.md directly'});
+   writeFileSync('New.md','Body written by the agent');
+   assert.equal(process.env.USER_CONFIG_MARKER,'inherited');
    if(provider==='codex') {
-    assert.ok(args.includes('--ignore-user-config'));
-    assert.equal(args[args.indexOf('--sandbox')+1],'read-only');
+    assert.ok(!args.includes('--ignore-user-config'));assert.ok(!args.includes('--ignore-rules'));
+    assert.ok(!args.includes('--sandbox'));
+    const schema=JSON.parse((await import('node:fs')).readFileSync(args[args.indexOf('--output-schema')+1],'utf8'));assert.deepEqual(schema.required,['reply']);
     writeFileSync(args[args.indexOf('--output-last-message')+1],answer);
     console.log(JSON.stringify({type:'thread.started'}));
    } else if(provider==='claude') {
-    assert.ok(args.includes('--strict-mcp-config'));
-    assert.equal(args[args.indexOf('--tools')+1],'Read,Grep,Glob');
+    assert.ok(!args.includes('--strict-mcp-config'));assert.ok(!args.includes('--disallowed-tools'));
+    assert.ok(!args.includes('--allowed-tools'));assert.equal(args[args.indexOf('--permission-prompts')+1],'none');
     console.log(JSON.stringify({type:'result',result:answer}));
    } else {
-    assert.ok(args.includes('--pure'));
-    assert.equal(JSON.parse(process.env.OPENCODE_CONFIG_CONTENT).permission,'deny');
-    const agent=args[args.indexOf('--agent')+1];
-    assert.equal(JSON.parse(process.env.OPENCODE_CONFIG_CONTENT).agent[agent].permission.read,'allow');
+    assert.ok(!args.includes('--pure'));assert.ok(!args.includes('--agent'));
+    assert.equal(process.env.OPENCODE_CONFIG_CONTENT,undefined);
     console.log(JSON.stringify({type:'text',part:{type:'text',text:answer}}));
    }
   `);
   const comment={id:'request',source:'comment-block',notePath:'Synthetic.md',commentId:'1',message:'@teddy help',quote:null,thread:[]};
-  const result=await runAgent({...options(f.command,f.dir),provider,comment,env:{FIXTURE_PROVIDER:provider,CODEX_HOME:f.dir}}).result;
-  assert.equal(JSON.parse(result.body).changes[0].path,'New.md');
+  const result=await runAgent({...options(f.command,f.dir),provider,comment,env:{FIXTURE_PROVIDER:provider,USER_CONFIG_MARKER:'inherited'}}).result;
+  assert.equal(JSON.parse(result.body).reply,'Edited New.md directly');assert.equal(await readFile(join(f.dir,'New.md'),'utf8'),'Body written by the agent');
  });
 }
 
@@ -111,3 +113,44 @@ test("comment failures with partial output are rejected and hung processes can b
  await new Promise((r)=>setTimeout(r,100));run.cancel();
  await assert.rejects(run.result,/Cancelled/);
 });
+
+for(const provider of ["codex","claude","opencode"]){
+ test(`${provider} comment permission denial fails even with a reply and a successful exit`,async(t)=>{
+  const f=await fixture(t,`const provider=process.env.FIXTURE_PROVIDER;const events={codex:{type:'turn.failed',error:{message:'sandbox permission denied'}},claude:{type:'result',result:'{"reply":"Partial"}',permission_denials:[{tool_name:'Edit'}]},opencode:{type:'permission.asked'}};console.log(JSON.stringify(events[provider]));`);
+  const comment={id:'request',source:'comment-block',notePath:'Synthetic.md',commentId:'1',message:'@teddy help',quote:null,thread:[]};
+  await assert.rejects(runAgent({...options(f.command,f.dir),provider,comment,env:{FIXTURE_PROVIDER:provider}}).result,/permission|approval/i);
+ });
+ test(`${provider} direct run timeout leaves completed file writes in place`,async(t)=>{
+  const f=await fixture(t,`import {writeFileSync} from 'node:fs';writeFileSync('Partial.md','Written before timeout');setInterval(()=>{},1000);`);
+  const comment={id:'request',source:'comment-block',notePath:'Synthetic.md',commentId:'1',message:'@teddy help',quote:null,thread:[]};
+  await assert.rejects(runAgent({...options(f.command,f.dir),provider,comment,timeoutMs:1000}).result,/Timed out/);
+  assert.equal(await readFile(join(f.dir,'Partial.md'),'utf8'),'Written before timeout');
+ });
+}
+
+
+for (const provider of ["codex", "claude", "opencode"]) {
+ test(`${provider} streams direct work before returning a malformed reply`, async (t) => {
+  const f=await fixture(t, `
+   import {writeFileSync} from 'node:fs';
+   const provider=process.env.FIXTURE_PROVIDER,args=process.argv;
+   writeFileSync('Partial.md','Direct effect remains');
+   const progress={codex:{type:'item.started',item:{type:'command_execution',command:'Editing Partial.md'}},claude:{type:'assistant',message:{content:[{type:'tool_use',name:'Edit',input:{file_path:'Partial.md'}}]}},opencode:{type:'tool_use',part:{type:'step-start'}}};
+   console.log(JSON.stringify(progress[provider]));
+   if(provider==='codex')writeFileSync(args[args.indexOf('--output-last-message')+1],'malformed reply');
+   else console.log(JSON.stringify(provider==='claude'?{type:'result',result:'malformed reply'}:{type:'text',part:{type:'text',text:'malformed reply'}}));
+  `);
+  const progress=[],comment={id:'request',source:'comment-block',notePath:'Synthetic.md',commentId:'1',message:'@teddy help',quote:null,thread:[]};
+  const result=await runAgent({...options(f.command,f.dir),provider,comment,env:{FIXTURE_PROVIDER:provider},onProgress:text=>progress.push(text)}).result;
+  assert.ok(progress.length);assert.throws(()=>parseCommentReply(result.body),/Work may already/);
+  assert.equal(await readFile(join(f.dir,'Partial.md'),'utf8'),'Direct effect remains');
+ });
+ test(`${provider} cancellation stops execution without rolling back direct edits`, async (t) => {
+  const f=await fixture(t, `import {writeFileSync} from 'node:fs';writeFileSync('Partial.md','Completed before cancellation');console.log(JSON.stringify({type:'thread.started'}));process.on('SIGTERM',()=>{});setInterval(()=>{},1000);`);
+  const comment={id:'request',source:'comment-block',notePath:'Synthetic.md',commentId:'1',message:'@teddy help',quote:null,thread:[]};
+  const run=runAgent({...options(f.command,f.dir),provider,comment,timeoutMs:5000});
+  for(let i=0;i<100;i++){try{await readFile(join(f.dir,'Partial.md'));break;}catch{await new Promise(r=>setTimeout(r,10));}}
+  run.cancel();await assert.rejects(run.result,/Cancelled/);
+  assert.equal(await readFile(join(f.dir,'Partial.md'),'utf8'),'Completed before cancellation');
+ });
+}
