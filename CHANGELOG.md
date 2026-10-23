@@ -1,3 +1,13 @@
+## [4.0.0](https://github.com/deepal/obsidian-ai-overview/compare/3.0.0...4.0.0) (2026-10-23)
+
+### ⚠ BREAKING CHANGES
+
+* comment agents now perform actions directly with the configured CLI permissions and return reply-only JSON. Direct runs require bridge v2 comment hosts; saved legacy results retain their recovery behavior.
+
+### Features
+
+* let comment agents act with configured cli permissions ([1e6b163](https://github.com/deepal/obsidian-ai-overview/commit/1e6b1634b5a13e127f144695478d591978f534c3))
+
 ## [3.0.0](https://github.com/deepal/obsidian-ai-overview/compare/2.0.1...3.0.0) (2026-10-22)
 
 ### ⚠ BREAKING CHANGES
