@@ -1,3 +1,9 @@
+## [4.0.1](https://github.com/deepal/obsidian-ai-overview/compare/4.0.0...4.0.1) (2026-10-25)
+
+### Bug Fixes
+
+* clarify comment integrations in the readme ([52b655d](https://github.com/deepal/obsidian-ai-overview/commit/52b655d62c5372570f3f8e3dabeaa328e831e555))
+
 ## [4.0.0](https://github.com/deepal/obsidian-ai-overview/compare/3.0.0...4.0.0) (2026-10-23)
 
 ### ⚠ BREAKING CHANGES
