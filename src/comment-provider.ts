@@ -1,13 +1,15 @@
 import type { ProviderId } from "./providers.ts";
+import { piArgs } from "./pi-provider.ts";
 
 /** Preserve user tools and permissions while reserving the invocation's transport and task. */
 export function commentArgs(provider: ProviderId, args: string[]): string[] {
-	const reserved: Record<ProviderId, string[]> = {
+	if (provider === "pi") return piArgs(args);
+	const reserved: Record<Exclude<ProviderId, "pi">, string[]> = {
 		codex: ["--output-schema", "--output-last-message", "-o", "--json", "--color", "--cd", "-C", "--worktree"],
 		claude: ["--verbose", "--no-verbose", "--output-format", "--input-format", "--json-schema", "--permission-prompts", "--permission-prompt-tool", "--print", "-p", "--continue", "-c", "--resume", "-r", "--session-id", "--fork-session"],
 		opencode: ["--format", "--dir", "--command", "--continue", "-c", "--session", "-s", "--fork", "--attach", "--interactive", "-i"],
 	};
-	const takesValue: Record<ProviderId, string[]> = {
+	const takesValue: Record<Exclude<ProviderId, "pi">, string[]> = {
 		codex: ["-c", "--config", "--profile", "-p", "--model", "-m", "--sandbox", "-s", "--add-dir", "--enable", "--disable", "--local-provider", "--thread-source"],
 		claude: ["--model", "--effort", "--permission-mode", "--settings", "--setting-sources", "--mcp-config", "--agent", "--agents", "--add-dir", "--tools", "--allowed-tools", "--allowedTools", "--disallowed-tools", "--disallowedTools", "--append-system-prompt", "--append-system-prompt-file", "--system-prompt", "--system-prompt-file", "--plugin-dir", "--max-turns", "--max-budget-usd"],
 		opencode: ["--model", "-m", "--variant", "--agent", "--file", "-f", "--title", "--port", "--log-level"],

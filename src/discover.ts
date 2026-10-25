@@ -103,7 +103,9 @@ export class CatalogueCache {
  */
 export function effortOptions(catalogue: Catalogue, model: string): string[] {
 	const selected = catalogue.models.find((m) => m.id === model);
-	if (selected) return selected.efforts;
+	if (selected) {
+		return selected.supportsThinking === true && !selected.efforts.length ? catalogue.efforts : selected.efforts;
+	}
 	if (catalogue.efforts.length) return catalogue.efforts;
 
 	const union: string[] = [];

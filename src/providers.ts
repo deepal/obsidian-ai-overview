@@ -1,6 +1,8 @@
-export type ProviderId = "codex" | "claude" | "opencode";
+import { pi } from "./pi-provider.ts";
 
-export const PROVIDER_IDS: ProviderId[] = ["codex", "claude", "opencode"];
+export type ProviderId = "codex" | "claude" | "opencode" | "pi";
+
+export const PROVIDER_IDS: ProviderId[] = ["codex", "claude", "opencode", "pi"];
 
 export interface ModelInfo {
 	/** Value passed to the CLI. */
@@ -9,6 +11,8 @@ export interface ModelInfo {
 	label: string;
 	/** Thinking levels this model supports, when the CLI reports them per model. */
 	efforts: string[];
+	/** When reported separately, use the CLI's global levels only for thinking models. */
+	supportsThinking?: boolean;
 }
 
 /** A listing command the CLI itself provides, and how to read its output. */
@@ -36,6 +40,12 @@ export interface ProviderRunContext {
 }
 
 type JsonObject = Record<string, unknown>;
+
+/** Created for each subprocess; state must never leak between concurrent runs. */
+export interface ProviderEventReader {
+	accept(event: JsonObject): string | null;
+	finish(): { text: string; error: string | null };
+}
 
 export interface Provider {
 	id: ProviderId;
@@ -71,6 +81,8 @@ export interface Provider {
 	final(event: JsonObject): string | null;
 	/** An error the CLI reported in-band, if any. */
 	error(event: JsonObject): string | null;
+	/** Stateful protocols can defer outcome checks until retries and follow-ups settle. */
+	createEventReader?(): ProviderEventReader;
 }
 
 function asObject(value: unknown): JsonObject | null {
@@ -426,7 +438,7 @@ const opencode: Provider = {
 	},
 };
 
-const PROVIDERS: Record<ProviderId, Provider> = { codex, claude, opencode };
+const PROVIDERS: Record<ProviderId, Provider> = { codex, claude, opencode, pi };
 
 export function getProvider(id: ProviderId): Provider {
 	return PROVIDERS[id] ?? codex;

@@ -25,10 +25,10 @@ export interface AiOverviewSettings {
 export const DEFAULT_SETTINGS: AiOverviewSettings = {
 	agentNameTag: "",
 	provider: "codex",
-	paths: { codex: "codex", claude: "claude", opencode: "opencode" },
-	models: { codex: "", claude: "", opencode: "" },
-	efforts: { codex: "", claude: "", opencode: "" },
-	extraArgs: { codex: "", claude: "", opencode: "" },
+	paths: { codex: "codex", claude: "claude", opencode: "opencode", pi: "pi" },
+	models: { codex: "", claude: "", opencode: "", pi: "" },
+	efforts: { codex: "", claude: "", opencode: "", pi: "" },
+	extraArgs: { codex: "", claude: "", opencode: "", pi: "" },
 	env: "",
 	timeoutSeconds: 300,
 };

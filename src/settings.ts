@@ -6,7 +6,7 @@ import type AiOverviewPlugin from "./main.ts";
 export { DEFAULT_SETTINGS, mergeSettings, type AiOverviewSettings } from "./settings-data.ts";
 
 const ARGS_PLACEHOLDERS: Record<ProviderId, string> = {
-	codex: "-c model_verbosity=low", claude: "--add-dir ../shared", opencode: "--agent plan",
+	codex: "-c model_verbosity=low", claude: "--add-dir ../shared", opencode: "--agent plan", pi: "--no-session",
 };
 const CLI_DEFAULT = "";
 const CLI_DEFAULT_LABEL = "CLI default";
@@ -184,7 +184,8 @@ export class AiOverviewSettingTab extends PluginSettingTab {
 				this.plugin.settings.models[active] = value;
 				// Levels are per model for some CLIs, so a stale one is dropped.
 				const allowed = effortOptions(catalogue, value);
-				if (allowed.length && !allowed.includes(this.plugin.settings.efforts[active])) {
+				const noThinking = catalogue.models.find((model) => model.id === value)?.supportsThinking === false;
+				if ((allowed.length || noThinking) && !allowed.includes(this.plugin.settings.efforts[active])) {
 					this.plugin.settings.efforts[active] = CLI_DEFAULT;
 				}
 				await this.plugin.saveSettings();

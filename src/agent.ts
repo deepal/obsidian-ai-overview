@@ -144,6 +144,7 @@ export function parseResult(text: string): AgentResult {
  */
 export function runAgent(opts: AgentRunOptions): AgentRun {
 	const provider = getProvider(opts.provider);
+	const eventReader = provider.createEventReader?.();
 	const extraArgs = opts.comment ? commentArgs(opts.provider, opts.extraArgs) : opts.extraArgs;
 	const stem = path.join(os.tmpdir(), `obsidian-ai-overview-${process.pid}-${nextRunId()}`);
 	const outFile = `${stem}.out`;
@@ -226,13 +227,15 @@ export function runAgent(opts: AgentRunOptions): AgentRun {
 				if (start === -1) continue;
 				let event: Record<string, unknown>;
 				try {
-					event = JSON.parse(line.slice(start)) as Record<string, unknown>;
+					const parsed: unknown = JSON.parse(line.slice(start));
+					if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) continue;
+					event = parsed as Record<string, unknown>;
 				} catch {
 					continue;
 				}
-				const status = provider.status(event);
+				const status = eventReader ? eventReader.accept(event) : provider.status(event);
 				if (status) opts.onProgress(status);
-				const final = provider.final(event);
+				const final = eventReader ? null : provider.final(event);
 				if (final) finalText = final;
 				reportedError = (opts.comment ? commentEventError(opts.provider, event) : null) ?? provider.error(event) ?? reportedError;
 			}
@@ -268,6 +271,16 @@ export function runAgent(opts: AgentRunOptions): AgentRun {
 					? await fs.readFile(outFile, "utf8").catch(() => "")
 					: "";
 				await cleanup();
+				if (eventReader) {
+					if (code !== 0) { fail(reportedError ?? errorMessage(code, stderr.join(""))); return; }
+					if (buffer.trim()) { fail(`${provider.label} ended with an incomplete JSON event.`); return; }
+					const outcome = eventReader.finish();
+					if (outcome.error || reportedError) {
+						fail(reportedError ?? outcome.error ?? errorMessage(code, stderr.join("")));
+						return;
+					}
+					finalText = outcome.text;
+				}
 				const text = (fileText.trim() || finalText.trim()).trim();
 				if (opts.comment && (code !== 0 || reportedError)) { fail(reportedError ?? errorMessage(code, stderr.join(""))); return; }
 				if (!text) {

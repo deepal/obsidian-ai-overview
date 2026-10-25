@@ -52,9 +52,19 @@ normal agent and configuration without a restricted reader agent or injected
 permission policy. Codex comment runs omit the overview's forced read-only
 sandbox and retain the CLI's own configuration.
 
+Pi comment runs use the normal configured tools, extensions, skills, MCP servers
+and existing project trust decisions. The plugin adds no `--approve` override.
+Overview callouts instead restrict Pi to `read,grep,find,ls` tools with MCP
+disabled. Pi 1.4.0 is the tested baseline. Its JSON event stream does not enforce
+the reply JSON format; malformed replies still require explicit retry. Pi's
+normal session persistence is retained, and `--no-session` may be configured in
+its extra arguments. The plugin waits for `agent_settled` and validates the final
+assistant stop reason, including when the process exits with code zero.
+
 See the CLI documentation for [Codex unattended execution](https://learn.chatgpt.com/docs/non-interactive-mode),
 [Claude Code headless permissions](https://code.claude.com/docs/en/headless) and
-[OpenCode permissions](https://opencode.ai/docs/permissions/).
+[OpenCode permissions](https://opencode.ai/docs/permissions/), and
+[Pi CLI integration](https://pi.dev/docs/latest/cli-integration).
 
 Output, prompt and session-resumption options are controlled by the plugin so it
 can stream activity and capture the final response. Conflicting extra arguments
@@ -125,6 +135,8 @@ Automated tests cover optional discovery/fallback, mention matching, source
 activity, identity, reply placement, stale buffers, renamed destinations,
 serialization, interruption, durable publication retry and legacy recovery.
 Provider subprocess fixtures exercise direct writes, inherited arguments,
-streamed activity, permission denial and timeouts for all three providers.
+streamed activity, permission denial and timeouts. Pi fixtures additionally
+cover recovered retries, completion events, errors with a successful process
+exit, multiple text blocks, aborts, truncation and missing completion.
 Use an isolated Obsidian vault with synthetic notes and deterministic fixtures
 for development checks before testing with a live model.

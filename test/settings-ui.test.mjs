@@ -41,6 +41,40 @@ test("indexing settings never launches model discovery", () => {
 	assert.ok(definitions.every((definition) => definition.name));
 });
 
+test("Pi provider can be selected without discarding another CLI's settings", async () => {
+	const f = fixture();
+	f.plugin.saveSettings = async () => {};
+	f.plugin.refreshViews = () => {};
+	f.plugin.settings.models.claude = "saved-claude-model";
+	const labels = new Map();
+	let change;
+	const dropdown = { addOption(id, label) { labels.set(id, label); return this; }, setValue() { return this; }, onChange(fn) { change = fn; return this; } };
+	f.tab.getSettingDefinitions().find((definition) => definition.name === "Agent CLI").render({ addDropdown(fn) { fn(dropdown); } });
+	assert.equal(labels.get("pi"), "Pi CLI");
+	await change("pi");
+	assert.equal(f.plugin.settings.provider, "pi");
+	assert.equal(f.plugin.command(), "pi");
+	assert.equal(f.plugin.settings.models.claude, "saved-claude-model");
+});
+
+test("Pi model changes clear incompatible thinking and preserve CLI default", async () => {
+	const f = fixture();
+	f.plugin.settings.provider = "pi";
+	f.plugin.settings.efforts.pi = "high";
+	f.plugin.saveSettings = async () => {};
+	f.plugin.refreshViews = () => {};
+	f.plugin.catalogue.peek = () => ({ models: [{ id: "local/plain", label: "Plain", efforts: [], supportsThinking: false }, { id: "remote/reasoning", label: "Reasoning", efforts: [], supportsThinking: true }], efforts: ["off", "low", "high"] });
+	let change;
+	const dropdown = { addOption() { return this; }, setValue() { return this; }, onChange(fn) { change = fn; return this; } };
+	const setting = { setDesc() {}, addDropdown(fn) { fn(dropdown); }, addExtraButton() {} };
+	f.tab.getSettingDefinitions().find((definition) => definition.name === "Model").render(setting);
+	await change("local/plain");
+	assert.equal(f.plugin.settings.efforts.pi, "");
+	await change("remote/reasoning");
+	assert.equal(f.plugin.settings.efforts.pi, "");
+	assert.equal(f.loads(), 0);
+});
+
 for (const scenario of ["current", "provider changed", "path changed", "row removed"]) {
 	test(`model discovery refresh guard - ${scenario}`, async () => {
 		const f = fixture();

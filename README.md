@@ -2,7 +2,8 @@
 
 Write a prompt inside a note and embed the result alongside it. AI Overview uses
 a locally installed [Codex CLI](https://github.com/openai/codex),
-[Claude Code](https://claude.com/claude-code), or [opencode](https://opencode.ai)
+[Claude Code](https://claude.com/claude-code), [opencode](https://opencode.ai), or
+[Pi](https://pi.dev)
 to carry out your request and save the generated content as a Markdown callout.
 
 ## Generate overviews in your notes
@@ -22,7 +23,7 @@ setup; the plugin does not collect payments or require a paid plan.
 
 ## Work with agents in comments
 
-AI Overview brings your configured Codex, Claude Code, or opencode agent into
+AI Overview brings your configured Codex, Claude Code, opencode, or Pi agent into
 [Inline Review Comments](https://community.obsidian.md/plugins/inline-review-comment)
 and [Discussions](https://community.obsidian.md/plugins/comment-block) when either
 or both plugins are installed and enabled in the same vault. Mention the agent
@@ -244,10 +245,10 @@ under **Settings → Hotkeys**.
 
 | Setting | Purpose |
 | --- | --- |
-| Agent CLI | Codex CLI (default), Claude Code CLI, or opencode CLI. |
+| Agent CLI | Codex CLI (default), Claude Code CLI, opencode CLI, or Pi CLI. |
 | CLI path | Executable name or absolute path. For a bare name, the plugin searches the inherited `PATH` plus common macOS/Linux install directories. |
-| Model | A dropdown for Codex and opencode, or a text field for Claude Code. **CLI default** or an empty field leaves the choice to the CLI. |
-| Reasoning effort / Effort level / Model variant | Available thinking levels reported by the selected CLI. **CLI default** leaves the choice to the CLI. |
+| Model | A dropdown for Codex, opencode, and Pi, or a text field for Claude Code. **CLI default** or an empty field leaves the choice to the CLI. |
+| Reasoning effort / Effort level / Model variant / Thinking level | Available thinking levels reported by the selected CLI. **CLI default** leaves the choice to the CLI. |
 | Agent name tag | Optional mention name such as `Byte`, without `@`. Blank disables comment agents. Mentions request direct work using the CLI's configured permissions; retries can repeat actions. |
 | Extra arguments | Additional arguments passed to the selected CLI's generation command. Quoted values are kept together. |
 | Environment variables | One `KEY=VALUE` per line, added to the CLI's inherited environment. Shared across CLIs. |
@@ -274,11 +275,39 @@ a fixed model list:
 | Codex | `codex debug models`; hidden entries are omitted | Each model's `supported_reasoning_levels` |
 | Claude Code | Manual entry | Choices parsed from `claude --help` |
 | opencode | `opencode models --verbose` | Each model's `variants` |
+| Pi | `pi --offline --list-models`, including configured local models | Levels from `pi --help` for models that report thinking support; Pi clamps the level to the model's capabilities |
 
-Results are cached for the plugin session. For Codex and opencode, use the refresh
+Results are cached for the plugin session. For Codex, opencode, and Pi, use the refresh
 button beside **Model** to ask again. Reloading the plugin also clears the cache.
 Discovery depends on your CLI version supporting these commands and output
 formats. If it fails, **CLI default** remains available.
+
+### Pi setup and compatibility
+
+Pi **1.4.0** is the tested baseline. Install and authenticate Pi separately, then
+choose **Pi CLI** under **Agent CLI**. Model identifiers include the Pi provider,
+for example `openai-codex/gpt-6.1-sol` or `ollama/qwen/qwen3.8-27b`. Leaving model
+and thinking level empty uses Pi's own configuration. Existing settings for
+other CLIs are retained when switching.
+
+For NVM or other version-managed installations, Obsidian may not inherit the
+terminal's executable search path. Run `command -v pi` in your terminal and paste
+the resulting absolute path into **Pi CLI path** if the bare `pi` command cannot
+be found from Obsidian.
+
+Pi runs with `--print --mode json` and one fresh prompt. Its event stream reports
+tool activity, and the plugin waits for a completed `agent_settled` event and a
+successful final assistant response. Errors, aborts and output-limit truncation
+are rejected even when Pi exits with code zero; automatic retries may recover
+before the final outcome. See [Pi CLI integration](https://pi.dev/docs/latest/cli-integration).
+
+The JSON event stream does not enforce the model's reply format. Pi is prompted
+for `{ "title": "…", "body": "…" }` for overviews and `{ "reply": "…" }` for
+comments. The existing strict comment parser still rejects malformed replies;
+inspect completed work before explicitly retrying. Session persistence follows
+Pi's normal configuration. Add `--no-session` to Pi's extra arguments to disable
+it. Output-mode, prompt and session-resumption overrides are rejected in both
+overview and comment runs.
 
 ## Privacy and file access
 
@@ -286,7 +315,7 @@ formats. If it fails, **CLI default** remains available.
 
 The plugin starts a local CLI rather than sending requests to a model API itself.
 The CLI's configuration determines which services are contacted. Codex commonly
-uses OpenAI, Claude Code commonly uses Anthropic, and opencode can use configured
+uses OpenAI, Claude Code commonly uses Anthropic, and opencode and Pi can use configured
 providers such as OpenAI, Anthropic, Google, or a local model. Alternative endpoints
 and CLI tools may contact other services, including websites requested by a prompt.
 Remote model services are used to generate the answer; the CLI may also contact
@@ -328,7 +357,10 @@ For overview callouts, the plugin asks every agent not to modify files. Its defa
 - gives **Claude Code** `--allowed-tools Read,Grep,Glob` and
   `--disallowed-tools Edit,Write,NotebookEdit,Bash`;
 - gives **opencode** no enforced read-only flag, so it relies on the prompt and
-  your opencode permissions.
+  your opencode permissions;
+- gives **Pi** `--tools read,grep,find,ls --no-mcp`, applied after extra arguments.
+  Pi extensions still run with the permissions of the Pi process; this is not a
+  filesystem sandbox.
 
 These are the plugin's default restrictions, not a universal guarantee about
 every CLI configuration or tool. Extra arguments and CLI configuration can
