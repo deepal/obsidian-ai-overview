@@ -5,6 +5,8 @@ a locally installed [Codex CLI](https://github.com/openai/codex),
 [Claude Code](https://claude.com/claude-code), or [opencode](https://opencode.ai)
 to carry out your request and save the generated content as a Markdown callout.
 
+## Generate overviews in your notes
+
 ![AI Overview generating an answer inside an Obsidian note](./docs/ai-overview2.gif)
 
 Use it to embed any Markdown content the agent can produce: summaries, action
@@ -17,6 +19,83 @@ so they can sync to other devices and remain readable with the plugin disabled.
 AI Overview is free. It uses agents you install and configure separately.
 Any provider account, subscription, or usage charges belong to your chosen agent
 setup; the plugin does not collect payments or require a paid plan.
+
+## Work with agents in comments
+
+AI Overview brings your configured Codex, Claude Code, or opencode agent into
+[Inline Review Comments](https://community.obsidian.md/plugins/inline-review-comment)
+and [Discussions](https://community.obsidian.md/plugins/comment-block) when either
+or both plugins are installed and enabled in the same vault. Mention the agent
+in a comment to ask a question or request work, and its reply appears in the same thread.
+You can review the result and send another mention to continue the conversation
+without switching to a terminal.
+
+### Set up agent mentions
+
+1. Install and enable AI Overview and either or both comment plugins in the same
+   desktop vault. Use compatible, up-to-date versions of all participating plugins.
+2. [Configure your Agent CLI](#your-first-overview), then set **Settings → AI
+   Overview → Agent name tag** to a name such as `Byte`, without the `@`.
+3. Submit a new comment or reply containing `@Byte` followed by your request.
+   Use the send button or **Cmd+Enter** / **Ctrl+Enter** to submit it.
+
+### Inline Review Comments
+
+[Inline Review Comments](https://community.obsidian.md/plugins/inline-review-comment)
+places review cards in the margin beside the passage you're working on. With
+AI Overview, you can ask your agent to explain that passage, check a claim, or
+revise the text, then read its response in the same card.
+
+![AI Overview responding to an agent mention in an Inline Review Comments margin card](./docs/inline-review-comments-ai.gif)
+
+These examples assume **Settings → AI Overview → Agent name tag** is set to
+`Byte`. Replace `Byte` with your configured agent's name tag. Select a paragraph,
+insert a review comment, and submit one of these requests:
+
+- `@Byte Explain this paragraph in simpler terms.`
+- `@Byte Check this claim and add a source to the note.`
+- `@Byte Rewrite this paragraph for readers who are new to the topic.`
+
+### Discussions
+
+[Discussions](https://community.obsidian.md/plugins/comment-block) adds threaded
+discussion panels inside your notes. With AI Overview, you can ask the agent to
+compare ideas, turn an agreed plan into action items, or update the note, keeping
+requests, replies, and follow-up decisions together in the discussion.
+
+![AI Overview responding to an agent mention in a Discussions thread](./docs/discussions-ai.gif)
+
+Assuming your agent's name tag is configured as `Byte`, start a discussion or
+reply to an existing thread with one of these requests:
+
+- `@Byte Compare the approaches discussed here and explain the trade-offs.`
+- `@Byte Update this note with the agreed action items.`
+
+### Progress and follow-up
+
+While the agent works, the thread shows a three-dot typing animation and its
+latest streamed activity. The agent receives the request, thread context, any
+quoted passage, and the current note's path. It performs requested work directly
+using the CLI's configured permissions, tools, and integrations, then reports
+the outcome in a reply. Note changes require the agent to have write access;
+AI Overview does not grant additional permissions.
+
+Comments typed directly into Markdown start only after you leave the completed
+comment. Existing mentions stay dormant when a note opens or the integration is
+enabled. Editing an answered comment does not rerun it; send a new mention reply.
+Failed requests offer **Retry**. **Stop** cancels active execution; previous file
+changes and external effects remain. Execution retries can repeat actions, so the
+agent receives the previous failure and must inspect current state. Publication
+retries only post the saved reply. Interrupted requests require an explicit retry.
+
+These integrations are optional. Leave **Agent name tag** blank to disable agent
+mentions. Both comment plugins work independently of AI Overview and remain
+usable on mobile; agent execution requires desktop. You can use either plugin
+or both, and each can be installed and updated independently. Replies stay in
+the note's Markdown after AI Overview is disabled.
+
+See [agent mention behavior and compatibility](docs/agent-mentions.md) for the
+CLI permissions, compatibility and recovery details.
 
 ## Requirements
 
@@ -161,35 +240,6 @@ under **Settings → Hotkeys**.
 | Regenerate every overview in this note | Regenerates callouts with non-empty prompts, preserving summaries without metadata. Skips the callout containing the active cursor; move outside it before running this command. |
 | Show status for this note | Shows detected callouts, generation state, and recorded errors. |
 
-## Optional agent mentions
-
-With a compatible **AI Overview** plugin enabled on desktop, set **Settings → AI
-Overview → Agent name tag** to `teddy`. Submit a comment or reply containing
-`@teddy`, for example `@teddy Explain this paragraph` or `@teddy Update this note
-with the agreed action items`.
-
-The configured agent responds in the same thread. While it works, that thread
-shows a three-dot typing animation with the latest streamed activity beneath it
-in very small, muted text. The agent performs requested work directly using its
-CLI's configured permissions, tools and integrations, then reports the outcome.
-The plugin does not grant additional access or apply proposed edits itself.
-
-Comments typed directly into Markdown start only after you leave the completed
-comment. Existing mentions stay dormant when a note opens or the integration is
-enabled. Editing an answered comment does not rerun it; send a new mention reply.
-Failed requests offer **Retry**. **Stop** cancels active execution; previous file
-changes and external effects remain. Execution retries can repeat actions, so the
-agent receives the previous failure and must inspect current state. Publication
-retries only post the saved reply. Interrupted requests require an explicit retry.
-
-The integration is optional. Without compatible, enabled AI Overview and a
-nonempty name tag, the comment plugins retain their existing appearance,
-settings, shortcuts and behavior. They remain usable on mobile; agent execution
-requires desktop. Each plugin can be installed and updated independently.
-
-See [agent mention behavior and compatibility](docs/agent-mentions.md) for the
-CLI permissions, compatibility and recovery details.
-
 ## Settings
 
 | Setting | Purpose |
@@ -198,7 +248,7 @@ CLI permissions, compatibility and recovery details.
 | CLI path | Executable name or absolute path. For a bare name, the plugin searches the inherited `PATH` plus common macOS/Linux install directories. |
 | Model | A dropdown for Codex and opencode, or a text field for Claude Code. **CLI default** or an empty field leaves the choice to the CLI. |
 | Reasoning effort / Effort level / Model variant | Available thinking levels reported by the selected CLI. **CLI default** leaves the choice to the CLI. |
-| Agent name tag | Optional mention name such as `teddy`, without `@`. Blank disables comment agents. Mentions request direct work using the CLI's configured permissions; retries can repeat actions. |
+| Agent name tag | Optional mention name such as `Byte`, without `@`. Blank disables comment agents. Mentions request direct work using the CLI's configured permissions; retries can repeat actions. |
 | Extra arguments | Additional arguments passed to the selected CLI's generation command. Quoted values are kept together. |
 | Environment variables | One `KEY=VALUE` per line, added to the CLI's inherited environment. Shared across CLIs. |
 | Timeout | Maximum generation time in seconds. Default: **300** (five minutes). |
