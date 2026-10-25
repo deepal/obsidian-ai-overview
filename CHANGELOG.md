@@ -1,3 +1,9 @@
+## [4.1.1](https://github.com/deepal/obsidian-ai-overview/compare/4.1.0...4.1.1) (2026-10-25)
+
+### Bug Fixes
+
+* handle comment replies across agent providers ([1d1bcbd](https://github.com/deepal/obsidian-ai-overview/commit/1d1bcbdddc0836f4904b450405541f485a560fad))
+
 ## [4.1.0](https://github.com/deepal/obsidian-ai-overview/compare/4.0.1...4.1.0) (2026-10-25)
 
 ### Features
