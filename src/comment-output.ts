@@ -4,6 +4,7 @@ export type NoteChange =
 export interface CommentResult { reply: string; changes: NoteChange[] }
 
 export interface CommentReply { reply: string }
+export type CommentReplyFormat = "json" | "markdown";
 export const COMMENT_SCHEMA = {
 	type: "object", properties: { reply: { type: "string" } },
 	required: ["reply"], additionalProperties: false,
@@ -21,6 +22,14 @@ export function parseCommentReply(text: string): CommentReply {
 		throw new Error("The agent must return only a nonempty Markdown reply. Work may already have taken effect; inspect current files before retrying.");
 	}
 	return { reply: value.reply };
+}
+
+/** Decode the provider's declared contract, never guess from the response text. */
+export function parseAgentCommentReply(text: string, format: CommentReplyFormat): CommentReply {
+	if (format === "json") return parseCommentReply(text);
+	const reply = text.trim();
+	if (!reply) throw new Error("The agent returned an empty Markdown reply. Work may already have taken effect; inspect current files before retrying.");
+	return { reply };
 }
 
 /** Unlike overview text, a malformed comment result must never be applied. */

@@ -1,4 +1,6 @@
 import { pi } from "./pi-provider.ts";
+import { COMMENT_SCHEMA, type CommentReplyFormat } from "./comment-output.ts";
+import { createClaudeCommentReader, createOpenCodeCommentReader } from "./comment-readers.ts";
 
 export type ProviderId = "codex" | "claude" | "opencode" | "pi";
 
@@ -49,12 +51,14 @@ export interface ProviderEventReader {
 
 export interface Provider {
 	id: ProviderId;
+	/** Final comment payload, independent of the CLI's JSON event transport. */
+	commentReplyFormat: CommentReplyFormat;
 	label: string;
 	/** Executable looked up on PATH when the user hasn't set one. */
 	defaultPath: string;
 	/**
-	 * Whether the response shape has to be requested in the prompt because the
-	 * CLI has no schema flag of its own.
+	 * Whether overview generation requests its response shape in the prompt.
+	 * Comment output uses commentReplyFormat and any provider-native schema.
 	 */
 	promptForJson: boolean;
 	/** Whether a JSON Schema file needs writing before the run. */
@@ -82,7 +86,7 @@ export interface Provider {
 	/** An error the CLI reported in-band, if any. */
 	error(event: JsonObject): string | null;
 	/** Stateful protocols can defer outcome checks until retries and follow-ups settle. */
-	createEventReader?(): ProviderEventReader;
+	createEventReader?(mode?: "overview" | "comment"): ProviderEventReader | undefined;
 }
 
 function asObject(value: unknown): JsonObject | null {
@@ -206,6 +210,7 @@ function toolTarget(input: JsonObject | null): string | null {
 
 const codex: Provider = {
 	id: "codex",
+	commentReplyFormat: "json",
 	label: "Codex CLI",
 	defaultPath: "codex",
 	promptForJson: false,
@@ -298,6 +303,7 @@ const codex: Provider = {
 
 const claude: Provider = {
 	id: "claude",
+	commentReplyFormat: "json",
 	label: "Claude Code CLI",
 	defaultPath: "claude",
 	promptForJson: true,
@@ -317,6 +323,7 @@ const claude: Provider = {
 		// The prompt goes first: the tool-list options are variadic and would
 		// otherwise swallow a trailing positional argument.
 		const args = [ctx.prompt, "--print", "--output-format", "stream-json", "--verbose"];
+		if (ctx.mode === "comment") args.push("--json-schema", JSON.stringify(COMMENT_SCHEMA));
 		if (ctx.model) args.push("--model", ctx.model);
 		if (ctx.effort) args.push("--effort", ctx.effort);
 		args.push(...ctx.extraArgs);
@@ -355,6 +362,9 @@ const claude: Provider = {
 		if (asString(event.type) !== "result" || event.is_error === true) return null;
 		return asString(event.result);
 	},
+	createEventReader(mode) {
+		return mode === "comment" ? createClaudeCommentReader((event) => claude.status(event)) : undefined;
+	},
 
 	error(event) {
 		if (asString(event.type) !== "result" || event.is_error !== true) return null;
@@ -364,6 +374,7 @@ const claude: Provider = {
 
 const opencode: Provider = {
 	id: "opencode",
+	commentReplyFormat: "markdown",
 	label: "opencode CLI",
 	defaultPath: "opencode",
 	promptForJson: true,
@@ -427,6 +438,9 @@ const opencode: Provider = {
 		// Text parts stream in place, each carrying the full text so far, so the
 		// newest one is the whole answer.
 		return asString(part.text);
+	},
+	createEventReader(mode) {
+		return mode === "comment" ? createOpenCodeCommentReader((event) => opencode.status(event)) : undefined;
 	},
 
 	error(event) {

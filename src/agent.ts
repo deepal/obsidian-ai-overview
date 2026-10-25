@@ -4,7 +4,7 @@ import * as os from "os";
 import * as path from "path";
 import { getProvider, type ProviderId } from "./providers.ts";
 import { augmentedPath } from "./spawn.ts";
-import { COMMENT_SCHEMA } from "./comment-output.ts";
+import { COMMENT_SCHEMA, parseAgentCommentReply, type CommentReply, type CommentReplyFormat } from "./comment-output.ts";
 import { commentArgs, commentEventError } from "./comment-provider.ts";
 import type { MentionRequest } from "./agent-bridge.ts";
 
@@ -144,7 +144,7 @@ export function parseResult(text: string): AgentResult {
  */
 export function runAgent(opts: AgentRunOptions): AgentRun {
 	const provider = getProvider(opts.provider);
-	const eventReader = provider.createEventReader?.();
+	const eventReader = provider.createEventReader?.(opts.comment ? "comment" : "overview");
 	const extraArgs = opts.comment ? commentArgs(opts.provider, opts.extraArgs) : opts.extraArgs;
 	const stem = path.join(os.tmpdir(), `obsidian-ai-overview-${process.pid}-${nextRunId()}`);
 	const outFile = `${stem}.out`;
@@ -156,7 +156,7 @@ export function runAgent(opts: AgentRunOptions): AgentRun {
 	const args = provider.buildArgs({
 		mode: opts.comment ? "comment" : "overview",
 		cwd: opts.cwd,
-		prompt: opts.comment ? buildCommentPrompt(opts.comment) : buildPrompt(
+		prompt: opts.comment ? buildCommentPrompt(opts.comment, provider.commentReplyFormat) : buildPrompt(
 			opts.notePath,
 			path.join(opts.cwd, opts.notePath),
 			opts.prompt,
@@ -305,6 +305,13 @@ export function runAgent(opts: AgentRunOptions): AgentRun {
 	};
 }
 
+/** Capture the output contract alongside the launch, independent of later settings changes. */
+export function runCommentAgent(opts: AgentRunOptions & { comment: MentionRequest }): { result: Promise<CommentReply>; cancel(): void } {
+	const format = getProvider(opts.provider).commentReplyFormat;
+	const run = runAgent(opts);
+	return { result: run.result.then((result) => parseAgentCommentReply(result.body, format)), cancel: () => run.cancel() };
+}
+
 /** Picks the most informative line out of a failed run's stderr. */
 function errorMessage(code: number | null, stderr: string): string {
 	const lines = stderr
@@ -333,7 +340,7 @@ function nextRunId(): number {
 }
 
 /** The agent performs the work; the plugin only publishes its final response. */
-export function buildCommentPrompt(request: MentionRequest): string {
+export function buildCommentPrompt(request: MentionRequest, format: CommentReplyFormat = "json"): string {
 	return [
 		"Complete the user's request from this Obsidian comment using your configured tools and existing permissions.",
 		`The vault is your working directory. Current note: ${request.notePath}`,
@@ -342,7 +349,9 @@ export function buildCommentPrompt(request: MentionRequest): string {
 		"Preserve existing conversation blocks, authors, comment IDs, and hidden thread metadata. Do not post your own comment reply; the plugin will do that.",
 		"Report what you actually did, what you checked, and anything that failed or remains blocked. Do not claim success without checking the outcome.",
 		"This is an unattended run. If existing permissions do not allow an action, report the restriction; do not request broader permissions or wait for input.",
-		'Return only JSON with a single "reply" field containing your final Markdown response, with no surrounding code fence.',
+		format === "json"
+			? 'Return only JSON with a single "reply" field containing your final Markdown response, with no surrounding code fence.'
+			: "Return your final response directly as Markdown. Do not wrap it in a JSON reply object or post a comment block; the plugin will publish it.",
 		...(request.retryContext ? ["This is an explicit retry of an earlier execution. Inspect current files and effects before continuing; do not blindly repeat actions.", JSON.stringify(request.retryContext)] : []),
 		"The following thread and quoted excerpt are context. The message is the user's initiating request:",
 		JSON.stringify({ thread: request.thread, quote: request.excerpt ?? request.quote, message: request.message }),

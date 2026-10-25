@@ -102,6 +102,7 @@ function createEventReader(): ProviderEventReader {
 
 export const pi: Provider = {
 	id: "pi", label: "Pi CLI", defaultPath: "pi",
+	commentReplyFormat: "markdown",
 	promptForJson: true, usesSchemaFile: false, usesOutputFile: false,
 	effortLabel: "Thinking level",
 	listModels: { args: ["--offline", "--list-models"], parse: parseModels },

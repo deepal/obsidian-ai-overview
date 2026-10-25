@@ -302,9 +302,10 @@ are rejected even when Pi exits with code zero; automatic retries may recover
 before the final outcome. See [Pi CLI integration](https://pi.dev/docs/latest/cli-integration).
 
 The JSON event stream does not enforce the model's reply format. Pi is prompted
-for `{ "title": "…", "body": "…" }` for overviews and `{ "reply": "…" }` for
-comments. The existing strict comment parser still rejects malformed replies;
-inspect completed work before explicitly retrying. Session persistence follows
+for `{ "title": "…", "body": "…" }` for overviews and returns Markdown directly
+for comments. The plugin requires a nonempty completed final response and creates
+the saved reply object itself. Inspect completed work before explicitly retrying
+any failed execution. Session persistence follows
 Pi's normal configuration. Add `--no-session` to Pi's extra arguments to disable
 it. Output-mode, prompt and session-resumption overrides are rejected in both
 overview and comment runs.
@@ -376,8 +377,13 @@ access outside Obsidian before retrying. Claude Code requires a version supporti
 `--permission-prompts none` (2.1.259 or newer).
 
 The agent performs requested actions directly, including actions available beyond
-the vault, and returns only `{ "reply": "Markdown response" }`. The plugin posts
-that reply into the current thread. Direct effects are not rolled back by Stop,
+the vault. Codex and Claude Code use a schema enforcing
+`{ "reply": "Markdown response" }`; OpenCode and Pi return Markdown directly.
+The plugin normalizes both into the same saved reply and posts it into the current
+thread. Claude requires `structured_output` from `--json-schema`, with no prose
+fallback. OpenCode requires completed text from the latest assistant message and
+a terminal `step_finish` reason of `stop`. Empty or incomplete responses fail.
+Direct effects are not rolled back by Stop,
 timeouts or failures, and execution retries cannot guarantee exactly-once effects.
 Saved legacy jobs retain their recorded plugin-applied edit recovery.
 

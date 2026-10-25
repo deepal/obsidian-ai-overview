@@ -31,8 +31,10 @@ it: send a new mention reply for another request.
 
 The agent receives the initiating message, relevant thread, excerpt and current
 note path. It follows applicable vault instructions, reads additional notes as
-needed, performs the requested work directly, then returns only
-`{ "reply": "Markdown response" }`. The originating comment plugin posts that
+needed, performs the requested work directly, then returns its final response.
+Codex and Claude Code use an enforced `{ "reply": "Markdown response" }` schema;
+OpenCode and Pi return Markdown directly. AI Overview normalizes both contracts
+into the same saved reply, and the originating comment plugin posts that
 response in its normal thread format. AI Overview no longer requires proposed
 replacement operations or applies note edits for new runs.
 
@@ -55,11 +57,18 @@ sandbox and retain the CLI's own configuration.
 Pi comment runs use the normal configured tools, extensions, skills, MCP servers
 and existing project trust decisions. The plugin adds no `--approve` override.
 Overview callouts instead restrict Pi to `read,grep,find,ls` tools with MCP
-disabled. Pi 1.4.0 is the tested baseline. Its JSON event stream does not enforce
-the reply JSON format; malformed replies still require explicit retry. Pi's
+disabled. Pi 1.4.0 is the tested baseline. Its JSON event stream carries progress;
+comment replies are accepted as Markdown, with no model-generated JSON wrapper. Pi's
 normal session persistence is retained, and `--no-session` may be configured in
 its extra arguments. The plugin waits for `agent_settled` and validates the final
 assistant stop reason, including when the process exits with code zero.
+
+Claude comment runs add `--json-schema` and require the final result event's
+`structured_output`. The prose `result` field is not a fallback. Missing or invalid
+structured output fails explicitly, including after direct work has taken effect.
+OpenCode comment runs require completed text from the latest assistant message
+with `step_finish` reason `stop`. Truncated, unfinished, or tool-call-only messages
+cannot be published as replies. Overview generation keeps its existing contracts.
 
 See the CLI documentation for [Codex unattended execution](https://learn.chatgpt.com/docs/non-interactive-mode),
 [Claude Code headless permissions](https://code.claude.com/docs/en/headless) and

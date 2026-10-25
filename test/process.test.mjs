@@ -3,8 +3,7 @@ import { test } from "node:test";
 import { mkdtemp, writeFile, chmod, rm, readdir, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runAgent } from "../src/agent.ts";
-import { parseCommentReply } from "../src/comment-output.ts";
+import { runAgent, runCommentAgent } from "../src/agent.ts";
 import { runCapture } from "../src/spawn.ts";
 import { CatalogueCache } from "../src/discover.ts";
 
@@ -79,28 +78,31 @@ for (const provider of ["codex", "claude", "opencode"]) {
    import { writeFileSync } from 'node:fs';
    import assert from 'node:assert/strict';
    const args=process.argv.slice(2), provider=process.env.FIXTURE_PROVIDER;
-   const answer=JSON.stringify({reply:'Edited New.md directly'});
+   const answer='Edited New.md directly';
    writeFileSync('New.md','Body written by the agent');
    assert.equal(process.env.USER_CONFIG_MARKER,'inherited');
    if(provider==='codex') {
     assert.ok(!args.includes('--ignore-user-config'));assert.ok(!args.includes('--ignore-rules'));
     assert.ok(!args.includes('--sandbox'));
     const schema=JSON.parse((await import('node:fs')).readFileSync(args[args.indexOf('--output-schema')+1],'utf8'));assert.deepEqual(schema.required,['reply']);
-    writeFileSync(args[args.indexOf('--output-last-message')+1],answer);
+    writeFileSync(args[args.indexOf('--output-last-message')+1],JSON.stringify({reply:answer}));
     console.log(JSON.stringify({type:'thread.started'}));
    } else if(provider==='claude') {
     assert.ok(!args.includes('--strict-mcp-config'));assert.ok(!args.includes('--disallowed-tools'));
     assert.ok(!args.includes('--allowed-tools'));assert.equal(args[args.indexOf('--permission-prompts')+1],'none');
-    console.log(JSON.stringify({type:'result',result:answer}));
+    assert.deepEqual(JSON.parse(args[args.indexOf('--json-schema')+1]).required,['reply']);
+    console.log(JSON.stringify({type:'result',result:'Human prose',structured_output:{reply:answer}}));
    } else {
     assert.ok(!args.includes('--pure'));assert.ok(!args.includes('--agent'));
     assert.equal(process.env.OPENCODE_CONFIG_CONTENT,undefined);
-    console.log(JSON.stringify({type:'text',part:{type:'text',text:answer}}));
+    console.log(JSON.stringify({type:'step_start',sessionID:'s',part:{type:'step-start',messageID:'m',sessionID:'s'}}));
+    console.log(JSON.stringify({type:'text',sessionID:'s',part:{type:'text',id:'t',messageID:'m',sessionID:'s',time:{end:1},text:answer}}));
+    console.log(JSON.stringify({type:'step_finish',sessionID:'s',part:{type:'step-finish',messageID:'m',sessionID:'s',reason:'stop'}}));
    }
   `);
   const comment={id:'request',source:'comment-block',notePath:'Synthetic.md',commentId:'1',message:'@teddy help',quote:null,thread:[]};
-  const result=await runAgent({...options(f.command,f.dir),provider,comment,env:{FIXTURE_PROVIDER:provider,USER_CONFIG_MARKER:'inherited'}}).result;
-  assert.equal(JSON.parse(result.body).reply,'Edited New.md directly');assert.equal(await readFile(join(f.dir,'New.md'),'utf8'),'Body written by the agent');
+  const result=await runCommentAgent({...options(f.command,f.dir),provider,comment,env:{FIXTURE_PROVIDER:provider,USER_CONFIG_MARKER:'inherited'}}).result;
+  assert.equal(result.reply,'Edited New.md directly');assert.equal(await readFile(join(f.dir,'New.md'),'utf8'),'Body written by the agent');
  });
 }
 
@@ -130,19 +132,19 @@ for(const provider of ["codex","claude","opencode"]){
 
 
 for (const provider of ["codex", "claude", "opencode"]) {
- test(`${provider} streams direct work before returning a malformed reply`, async (t) => {
+ test(`${provider} streams direct work before a malformed or incomplete response fails`, async (t) => {
   const f=await fixture(t, `
    import {writeFileSync} from 'node:fs';
    const provider=process.env.FIXTURE_PROVIDER,args=process.argv;
    writeFileSync('Partial.md','Direct effect remains');
-   const progress={codex:{type:'item.started',item:{type:'command_execution',command:'Editing Partial.md'}},claude:{type:'assistant',message:{content:[{type:'tool_use',name:'Edit',input:{file_path:'Partial.md'}}]}},opencode:{type:'tool_use',part:{type:'step-start'}}};
+   const progress={codex:{type:'item.started',item:{type:'command_execution',command:'Editing Partial.md'}},claude:{type:'assistant',message:{content:[{type:'tool_use',name:'Edit',input:{file_path:'Partial.md'}}]}},opencode:{type:'step_start',sessionID:'s',part:{type:'step-start',sessionID:'s',messageID:'m'}}};
    console.log(JSON.stringify(progress[provider]));
    if(provider==='codex')writeFileSync(args[args.indexOf('--output-last-message')+1],'malformed reply');
    else console.log(JSON.stringify(provider==='claude'?{type:'result',result:'malformed reply'}:{type:'text',part:{type:'text',text:'malformed reply'}}));
   `);
   const progress=[],comment={id:'request',source:'comment-block',notePath:'Synthetic.md',commentId:'1',message:'@teddy help',quote:null,thread:[]};
-  const result=await runAgent({...options(f.command,f.dir),provider,comment,env:{FIXTURE_PROVIDER:provider},onProgress:text=>progress.push(text)}).result;
-  assert.ok(progress.length);assert.throws(()=>parseCommentReply(result.body),/Work may already/);
+  await assert.rejects(runCommentAgent({...options(f.command,f.dir),provider,comment,env:{FIXTURE_PROVIDER:provider},onProgress:text=>progress.push(text)}).result,/Work may already/);
+  assert.ok(progress.length);
   assert.equal(await readFile(join(f.dir,'Partial.md'),'utf8'),'Direct effect remains');
  });
  test(`${provider} cancellation stops execution without rolling back direct edits`, async (t) => {

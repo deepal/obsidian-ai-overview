@@ -3,9 +3,8 @@ import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { runAgent, parseResult } from "../src/agent.ts";
+import { runAgent, runCommentAgent, parseResult } from "../src/agent.ts";
 import { commentArgs } from "../src/comment-provider.ts";
-import { parseCommentReply } from "../src/comment-output.ts";
 import { effortOptions } from "../src/discover.ts";
 import { getProvider } from "../src/providers.ts";
 import { mergeSettings } from "../src/settings-data.ts";
@@ -106,14 +105,14 @@ const comment = { id: "request", source: "comment-block", notePath: "Synthetic.m
 const options = (f, direct = true) => ({ provider: "pi", command: f.command, cwd: f.dir, notePath: "Synthetic.md", prompt: "Synthetic overview", ...(direct ? { comment } : {}), model: "", effort: "", extraArgs: [], env: { INHERITED_MARKER: "present" }, timeoutMs: 3000, onProgress() {} });
 const emit = (events) => events.map((event) => `console.log(${JSON.stringify(JSON.stringify(event))});`).join("\n");
 
-test("Pi subprocess streams activity, preserves direct effects and returns strict reply JSON", async (t) => {
+test("Pi subprocess streams activity, preserves direct effects and normalizes Markdown", async (t) => {
 	const f = await fixture(t, `import {writeFileSync} from 'node:fs';import assert from 'node:assert/strict';
 assert.equal(process.env.INHERITED_MARKER,'present');assert.ok(!process.argv.includes('--no-mcp'));assert.ok(!process.argv.includes('--no-extensions'));
 writeFileSync('Direct.md','Direct effect');
-${emit([{ type: "tool_execution_start", toolName: "write", args: { path: "Direct.md" } }, message('{"reply":"Done"}'), settled])}`);
+${emit([{ type: "tool_execution_start", toolName: "write", args: { path: "Direct.md" } }, message('Done'), settled])}`);
 	const progress = [];
-	const result = await runAgent({ ...options(f), onProgress: (status) => progress.push(status) }).result;
-	assert.deepEqual(parseCommentReply(result.body), { reply: "Done" });
+	const result = await runCommentAgent({ ...options(f), onProgress: (status) => progress.push(status) }).result;
+	assert.deepEqual(result, { reply: "Done" });
 	assert.equal(await readFile(join(f.dir, "Direct.md"), "utf8"), "Direct effect");
 	assert.match(progress.join(" "), /write: Direct.md/);
 });
@@ -150,10 +149,10 @@ test("Pi subprocess handles chunked Unicode events and rejects an unterminated t
 	await assert.rejects(runAgent(options(tail)).result, /incomplete JSON event/);
 });
 
-test("Pi malformed replies, cancellation and timeout leave earlier direct writes intact", async (t) => {
+test("Pi Markdown replies, cancellation and timeout leave earlier direct writes intact", async (t) => {
 	const malformed = await fixture(t, `import {writeFileSync} from 'node:fs';writeFileSync('Partial.md','Completed');${emit([message("Not JSON"), settled])}`);
-	const malformedResult = await runAgent(options(malformed)).result;
-	assert.throws(() => parseCommentReply(malformedResult.body), /invalid reply JSON/);
+	const markdownResult = await runCommentAgent(options(malformed)).result;
+	assert.deepEqual(markdownResult, { reply: "Not JSON" });
 	assert.equal(await readFile(join(malformed.dir, "Partial.md"), "utf8"), "Completed");
 	for (const cancel of [false, true]) {
 		const f = await fixture(t, `import {writeFileSync} from 'node:fs';writeFileSync('Partial.md','Completed');console.log('{"type":"agent_start"}');process.on('SIGTERM',()=>{});setInterval(()=>{},1000);`);

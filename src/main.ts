@@ -1,7 +1,6 @@
 import { BRIDGE_DISCOVER, BRIDGE_CHANGED, type AgentBridge } from "./agent-bridge.ts";
 import { CommentJobs, parseSavedJobs, type SavedJob } from "./comment-jobs.ts";
-import { runAgent } from "./agent.ts";
-import { parseCommentReply } from "./comment-output.ts";
+import { runCommentAgent } from "./agent.ts";
 import { applyNoteChange } from "./note-changes.ts";
 import { type Events, Editor, FileSystemAdapter, MarkdownView, Notice, Plugin, TFile } from "obsidian";
 import { CatalogueCache } from "./discover.ts";
@@ -191,13 +190,12 @@ export default class AiOverviewPlugin extends Plugin {
 		this.commentJobs = new CommentJobs({
 			persist: (jobs) => this.app.vault.adapter.write(storagePath, JSON.stringify(jobs)),
 			launch: (request, onProgress) => {
-				const run = runAgent({
+				return runCommentAgent({
 					provider: this.settings.provider, command: this.command(), cwd: this.vaultRoot(),
 					notePath: request.notePath, prompt: request.message, comment: request,
 					model: this.model(), effort: this.effort(), extraArgs: this.extraArgs(), env: this.env(),
 					timeoutMs: this.settings.timeoutSeconds * 1000, onProgress,
 				});
-				return { result: run.result.then((result) => parseCommentReply(result.body)), cancel: () => run.cancel() };
 			},
 			apply: (change) => applyNoteChange(this.app, this.vaultRoot(), change),
 			publicationFailed: (request, error) => {
