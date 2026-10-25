@@ -1,3 +1,9 @@
+## [4.1.0](https://github.com/deepal/obsidian-ai-overview/compare/4.0.1...4.1.0) (2026-10-25)
+
+### Features
+
+* add pi agent support ([a6b0329](https://github.com/deepal/obsidian-ai-overview/commit/a6b0329c8baccd6f8c15e5f42364e6e800de7416))
+
 ## [4.0.1](https://github.com/deepal/obsidian-ai-overview/compare/4.0.0...4.0.1) (2026-10-25)
 
 ### Bug Fixes
