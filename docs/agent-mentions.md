@@ -54,6 +54,39 @@ normal agent and configuration without a restricted reader agent or injected
 permission policy. Codex comment runs omit the overview's forced read-only
 sandbox and retain the CLI's own configuration.
 
+When Claude Code denies a tool, the failed comment names it, one line for the
+card. For example: `Claude Code denied Edit (Notes/Plan.md) and Bash (grep -n
+foo note.md). To allow them, add --allowed-tools Edit "Bash(grep *)" to Extra
+arguments and retry, or update Claude Code's permission settings. The reply was
+not published, and earlier actions may already have taken effect.` Each denied
+tool appears once, in order, up to three and then "and N more". The target is
+the note path relative to the vault (or just the file name outside it), the
+first line of a command up to 60 characters, a URL's domain, or a short search
+pattern. Edit text and file contents are never shown, but a command, pattern or
+search appears as the agent wrote it (truncated) and can contain a path or text
+from your notes; turn off **Show permission error details** to avoid that. The
+suggested `--allowed-tools` never goes beyond what was denied: other tools are
+suggested by name, and `Bash` becomes one `"Bash(<word> *)"` rule for the first
+word of each part of the denied command (split on `&&`, `||`, `;` and `|`), as
+Claude Code needs a rule for every part. When a part cannot be narrowed safely,
+such as a command wrapped in `sudo`, `bash -c` or `env`, no Bash rule is
+suggested and the message asks you to allow the command in Claude Code's
+permission settings instead. Tool names that are not plain identifiers are named
+but left out of the suggestion. The suggestion cannot override a `deny` rule or
+`--disallowed-tools`; change those in Claude Code's own settings. A denial still
+fails the job and discards the reply, as before. Turn off **Show permission
+error details** in the settings to keep the generic message instead, for example
+to keep paths and commands out of the comment card. The setting is read when a
+run starts, and it applies to Claude Code only; Codex, OpenCode and Pi keep the
+generic message.
+
+To avoid denials for tools you never want the agent to try, hide them instead of
+allowing them. `--tools` chooses which tools the agent can see and
+`--allowed-tools` chooses which of those run without approval. For example,
+`--tools Read Grep Glob Edit WebSearch WebFetch --allowed-tools Edit WebSearch
+WebFetch` in **Extra arguments** hides every other tool, such as `Bash`, so the
+agent cannot request it, and lets the rest run unattended.
+
 Pi comment runs use the normal configured tools, extensions, skills, MCP servers
 and existing project trust decisions. The plugin adds no `--approve` override.
 Overview callouts instead restrict Pi to `read,grep,find,ls` tools with MCP

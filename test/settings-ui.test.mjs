@@ -36,7 +36,7 @@ function fixture() {
 test("indexing settings never launches model discovery", () => {
 	const f = fixture();
 	const definitions = f.tab.getSettingDefinitions();
-	assert.equal(definitions.length, 9);
+	assert.equal(definitions.length, 10);
 	assert.equal(f.loads(), 0);
 	assert.ok(definitions.every((definition) => definition.name));
 });
@@ -50,6 +50,21 @@ test("Files activity toggle saves immediately without refreshing notes or discov
 		.render({ addToggle(fn) { fn(toggle); } });
 	await change(false);
 	assert.equal(f.plugin.settings.showFileExplorerActivity, false);
+	assert.equal(saved, 1);
+	assert.equal(f.loads(), 0);
+});
+
+test("permission error details toggle sits with the agent mention settings and saves immediately", async () => {
+	const f = fixture(); let change, saved = 0;
+	f.plugin.saveSettings = async () => { saved++; };
+	f.plugin.refreshViews = () => assert.fail("the toggle must not trigger generation");
+	const toggle = { setValue(value) { assert.equal(value, true); return this; }, onChange(fn) { change = fn; return this; } };
+	const definitions = f.tab.getSettingDefinitions();
+	const names = definitions.map((definition) => definition.name);
+	assert.equal(names.indexOf("Show permission error details"), names.indexOf("Agent name tag") + 1);
+	definitions[names.indexOf("Show permission error details")].render({ addToggle(fn) { fn(toggle); } });
+	await change(false);
+	assert.equal(f.plugin.settings.showPermissionErrorDetails, false);
 	assert.equal(saved, 1);
 	assert.equal(f.loads(), 0);
 });

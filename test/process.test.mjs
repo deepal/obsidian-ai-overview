@@ -116,11 +116,40 @@ test("comment failures with partial output are rejected and hung processes can b
  await assert.rejects(run.result,/Cancelled/);
 });
 
+test("claude comment denial names the tool, vault-relative target and allowing flag, and the preference turns that off",async(t)=>{
+ const f=await fixture(t,`const file=process.cwd()+'/Notes/Plan.md';console.log(JSON.stringify({type:'result',subtype:'success',is_error:false,structured_output:{reply:'Ready'},permission_denials:[{tool_name:'Edit',tool_use_id:'t1',tool_input:{file_path:file,old_string:'SECRET-OLD',new_string:'SECRET-NEW',replace_all:false}},{tool_name:'Bash',tool_use_id:'t2',tool_input:{command:'grep -n foo note.md'}}]}));`);
+ const comment={id:'request',source:'comment-block',notePath:'Synthetic.md',commentId:'1',message:'@teddy help',quote:null,thread:[]};
+ const run=(extra={})=>runAgent({...options(f.command,f.dir),provider:'claude',comment,...extra}).result;
+ const error=await run().then(()=>assert.fail('a denial must fail the job'),(e)=>e instanceof Error?e.message:String(e));
+ assert.match(error,/^Claude Code denied Edit \(Notes\/Plan\.md\) and Bash \(grep -n foo note\.md\)\./);
+ assert.ok(error.includes('--allowed-tools Edit "Bash(grep *)"'));
+ assert.doesNotMatch(error,/SECRET|[\r\n]/);
+ await assert.rejects(run({permissionDetails:true}),/^Error: Claude Code denied Edit/);
+ await assert.rejects(run({permissionDetails:false}),/^Error: The agent needs permission that is not available to this unattended run\. Configure the CLI's permissions outside Obsidian, then retry\. Earlier actions may already have taken effect\.$/);
+});
+
+test("claude detailed denial is not replaced by an approval message from stderr, whichever arrives first",async(t)=>{
+ const event=`JSON.stringify({type:'result',subtype:'success',structured_output:{reply:'Ready'},permission_denials:[{tool_name:'Edit',tool_use_id:'t1',tool_input:{file_path:process.cwd()+'/Plan.md'}}]})`;
+ const comment={id:'request',source:'comment-block',notePath:'Synthetic.md',commentId:'1',message:'@teddy help',quote:null,thread:[]};
+ const orders={
+  'stderr after the event':`console.log(${event});process.stderr.write('permission requested: approval required\\n');`,
+  'stderr before the event':`process.stderr.write('permission requested: approval required\\n');setTimeout(()=>console.log(${event}),50);`,
+ };
+ for(const [name,code] of Object.entries(orders)){
+  const f=await fixture(t,code);
+  const error=await runAgent({...options(f.command,f.dir),provider:'claude',comment}).result.then(()=>assert.fail(name),(e)=>e instanceof Error?e.message:String(e));
+  assert.match(error,/^Claude Code denied Edit \(Plan\.md\)/,name);
+  assert.doesNotMatch(error,/CLI needs additional approval/,name);
+ }
+ const f=await fixture(t,`process.stderr.write('permission requested: approval required\\n');console.log(JSON.stringify({type:'result',subtype:'success',structured_output:{reply:'Ready'}}));`);
+ await assert.rejects(runAgent({...options(f.command,f.dir),provider:'claude',comment}).result,/The CLI needs additional approval/);
+});
+
 for(const provider of ["codex","claude","opencode"]){
  test(`${provider} comment permission denial fails even with a reply and a successful exit`,async(t)=>{
   const f=await fixture(t,`const provider=process.env.FIXTURE_PROVIDER;const events={codex:{type:'turn.failed',error:{message:'sandbox permission denied'}},claude:{type:'result',result:'{"reply":"Partial"}',permission_denials:[{tool_name:'Edit'}]},opencode:{type:'permission.asked'}};console.log(JSON.stringify(events[provider]));`);
   const comment={id:'request',source:'comment-block',notePath:'Synthetic.md',commentId:'1',message:'@teddy help',quote:null,thread:[]};
-  await assert.rejects(runAgent({...options(f.command,f.dir),provider,comment,env:{FIXTURE_PROVIDER:provider}}).result,/permission|approval/i);
+  await assert.rejects(runAgent({...options(f.command,f.dir),provider,comment,env:{FIXTURE_PROVIDER:provider}}).result,provider==='claude'?/Claude Code denied Edit[\s\S]*permission/:/permission|approval/i);
  });
  test(`${provider} direct run timeout leaves completed file writes in place`,async(t)=>{
   const f=await fixture(t,`import {writeFileSync} from 'node:fs';writeFileSync('Partial.md','Written before timeout');setInterval(()=>{},1000);`);

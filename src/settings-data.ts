@@ -7,6 +7,8 @@ type ByProvider = Record<ProviderId, string>;
 export interface AiOverviewSettings {
 	agentNameTag: string;
 	showFileExplorerActivity: boolean;
+	/** Name the denied tool and the flag that allows it when a comment run hits a permission denial. */
+	showPermissionErrorDetails: boolean;
 	/** Which CLI generates overviews. */
 	provider: ProviderId;
 	/** Executable name or absolute path, per provider. */
@@ -26,6 +28,7 @@ export interface AiOverviewSettings {
 export const DEFAULT_SETTINGS: AiOverviewSettings = {
 	agentNameTag: "",
 	showFileExplorerActivity: true,
+	showPermissionErrorDetails: true,
 	provider: "codex",
 	paths: { codex: "codex", claude: "claude", opencode: "opencode", pi: "pi" },
 	models: { codex: "", claude: "", opencode: "", pi: "" },
@@ -59,6 +62,8 @@ export function mergeSettings(raw: unknown): AiOverviewSettings {
 		agentNameTag: normalizeTag(data.agentNameTag),
 		showFileExplorerActivity: typeof data.showFileExplorerActivity === "boolean"
 			? data.showFileExplorerActivity : DEFAULT_SETTINGS.showFileExplorerActivity,
+		showPermissionErrorDetails: typeof data.showPermissionErrorDetails === "boolean"
+			? data.showPermissionErrorDetails : DEFAULT_SETTINGS.showPermissionErrorDetails,
 		provider: PROVIDER_IDS.includes(data.provider as ProviderId) ? data.provider as ProviderId : DEFAULT_SETTINGS.provider,
 		paths: providerValues(data.paths, DEFAULT_SETTINGS.paths, true),
 		models: providerValues(data.models, DEFAULT_SETTINGS.models),

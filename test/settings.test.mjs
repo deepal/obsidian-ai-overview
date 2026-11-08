@@ -35,3 +35,13 @@ test("Files activity is enabled by default and only accepts persisted booleans",
 		assert.equal(mergeSettings({ showFileExplorerActivity: value }).showFileExplorerActivity, true);
 	}
 });
+
+test("permission error details are on by default, persist when off and ignore invalid values", () => {
+	assert.equal(DEFAULT_SETTINGS.showPermissionErrorDetails, true);
+	assert.equal(mergeSettings({}).showPermissionErrorDetails, true);
+	assert.equal(mergeSettings({ showPermissionErrorDetails: false }).showPermissionErrorDetails, false);
+	assert.equal(mergeSettings({ showPermissionErrorDetails: true }).showPermissionErrorDetails, true);
+	for (const value of ["no", "false", 0, 1, null, {}, []]) {
+		assert.equal(mergeSettings({ showPermissionErrorDetails: value }).showPermissionErrorDetails, true);
+	}
+});

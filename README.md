@@ -268,6 +268,7 @@ under **Settings → Hotkeys**.
 | Model | A dropdown for Codex, opencode, and Pi, or a text field for Claude Code. **CLI default** or an empty field leaves the choice to the CLI. |
 | Reasoning effort / Effort level / Model variant / Thinking level | Available thinking levels reported by the selected CLI. **CLI default** leaves the choice to the CLI. |
 | Agent name tag | Optional mention name such as `Byte`, without `@`. Blank disables comment agents. Mentions request direct work using the CLI's configured permissions; retries can repeat actions. |
+| Show permission error details | On by default. When Claude Code denies a tool in an agent mention, the error names the tool, its target and the `--allowed-tools` value that allows it. Turn off for the generic message. |
 | Extra arguments | Additional arguments passed to the selected CLI's generation command. Quoted values are kept together. |
 | Environment variables | One `KEY=VALUE` per line, added to the CLI's inherited environment. Shared across CLIs. |
 | Timeout | Maximum generation time in seconds. Default: **300** (five minutes). |
@@ -391,7 +392,14 @@ configuration, tools and integrations and inherit its permissions. The plugin
 adds no full-access or auto-approval flags. A CLI configured read-only remains
 read-only. Temporary grants in another CLI session do not transfer to this new
 process. Unresolved approval requests fail with an actionable error; configure
-access outside Obsidian before retrying. Claude Code requires a version supporting
+access outside Obsidian before retrying. For Claude Code the error names the
+denied tools and the `--allowed-tools` value that allows them, which you can add
+to **Extra arguments**; turn off **Show permission error details** to keep the
+generic message. To stop the agent from trying tools you do not want it to use,
+hide them with `--tools` and allow the rest with `--allowed-tools`, for example
+`--tools Read Grep Glob Edit WebSearch WebFetch --allowed-tools Edit WebSearch WebFetch`:
+`--tools` chooses which tools the agent can see, `--allowed-tools` which of those
+run without approval. Claude Code requires a version supporting
 `--permission-prompts none` (2.1.259 or newer).
 
 The agent performs requested actions directly, including actions available beyond

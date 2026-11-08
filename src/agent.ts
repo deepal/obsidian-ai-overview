@@ -50,6 +50,8 @@ export interface AgentRunOptions {
 	extraArgs: string[];
 	/** Extra environment variables for the child process. */
 	env: Record<string, string>;
+	/** Comment runs only: spell out denied Claude Code tools in the error. Defaults to true. */
+	permissionDetails?: boolean;
 	onProgress: (status: string) => void;
 }
 
@@ -237,7 +239,7 @@ export function runAgent(opts: AgentRunOptions): AgentRun {
 				if (status) opts.onProgress(status);
 				const final = eventReader ? null : provider.final(event);
 				if (final) finalText = final;
-				reportedError = (opts.comment ? commentEventError(opts.provider, event) : null) ?? provider.error(event) ?? reportedError;
+				reportedError = (opts.comment ? commentEventError(opts.provider, event, { vaultRoot: opts.cwd, details: opts.permissionDetails }) : null) ?? provider.error(event) ?? reportedError;
 			}
 		});
 
@@ -245,7 +247,7 @@ export function runAgent(opts: AgentRunOptions): AgentRun {
 		child.stderr?.on("data", (chunk: string) => {
 			stderr.push(chunk);
 			if (opts.comment && /permission requested[\s\S]*auto.reject|permission.*requires.*approval|approval.*required/i.test(stderr.join(""))) {
-				reportedError = "The CLI needs additional approval. Configure permissions outside Obsidian and retry; earlier actions may already have taken effect.";
+				reportedError ??= "The CLI needs additional approval. Configure permissions outside Obsidian and retry; earlier actions may already have taken effect.";
 			}
 		});
 

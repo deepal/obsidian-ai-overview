@@ -66,6 +66,17 @@ export class AiOverviewSettingTab extends PluginSettingTab {
 				},
 			},
 			{
+				name: "Show permission error details",
+				desc: "When Claude Code denies a tool in an agent mention, name the tool, its target and the --allowed-tools value that would allow it, instead of a generic message. The target can be a note path or the start of a command. Turn off to keep the generic message.",
+				render: (setting) => {
+					setting.addToggle((toggle) => toggle.setValue(this.plugin.settings.showPermissionErrorDetails)
+						.onChange(async (value) => {
+							this.plugin.settings.showPermissionErrorDetails = value;
+							await this.plugin.saveSettings();
+						}));
+				},
+			},
+			{
 				name: "Agent CLI",
 				desc: "Which locally installed CLI generates overviews.",
 				render: (setting) => {

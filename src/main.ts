@@ -207,6 +207,7 @@ export default class AiOverviewPlugin extends Plugin {
 					notePath: request.notePath, prompt: request.message, comment: request,
 					model: this.model(), effort: this.effort(), extraArgs: this.extraArgs(), env: this.env(),
 					timeoutMs: this.settings.timeoutSeconds * 1000, onProgress,
+					permissionDetails: this.settings.showPermissionErrorDetails,
 				});
 			},
 			apply: (change) => applyNoteChange(this.app, this.vaultRoot(), change),
